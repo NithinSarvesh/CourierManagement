@@ -2,7 +2,7 @@ import { useState, useEffect } from 'react';
 import api from '../api';
 import AlertBanner from '../components/AlertBanner';
 
-const DEFAULT_SCHEMA = [
+const TABLE_DDL_REFERENCE = [
   {
     tableName: 'CUSTOMER',
     description: 'Client accounts placing package delivery orders',
@@ -203,25 +203,49 @@ const DEFAULT_SCHEMA = [
 ];
 
 export default function DatabaseSchema({ go }) {
-  const [schema, setSchema] = useState(DEFAULT_SCHEMA);
+  const [schema, setSchema] = useState([]);
+  const [loading, setLoading] = useState(true);
+  const [alert, setAlert] = useState(null);
   const [selectedTable, setSelectedTable] = useState('CUSTOMER');
   const [showDdl, setShowDdl] = useState(false);
 
-  useEffect(() => {
+  const loadSchema = () => {
+    setLoading(true);
     api.getDatabaseSchema()
       .then((data) => {
         if (Array.isArray(data) && data.length > 0) {
-          // Merge DDL from DEFAULT_SCHEMA
           const merged = data.map(t => {
-            const def = DEFAULT_SCHEMA.find(d => d.tableName === t.tableName);
-            return { ...t, ddl: def?.ddl || '' };
+            const def = TABLE_DDL_REFERENCE.find(d => d.tableName === t.tableName);
+            return {
+              ...t,
+              ddl: def?.ddl || `-- Table ${t.tableName}\n-- Columns retrieved from Oracle dictionary`,
+              relationships: t.relationships || def?.relationships || []
+            };
           });
           setSchema(merged);
+          if (!merged.some(m => m.tableName === selectedTable)) {
+            setSelectedTable(merged[0]?.tableName || 'CUSTOMER');
+          }
+          setAlert(null);
+        } else {
+          setSchema([]);
+          setAlert({ type: 'error', message: 'No database schema dictionary returned by Oracle.' });
         }
       })
-      .catch(() => {
-        // Use DEFAULT_SCHEMA if offline
+      .catch((err) => {
+        setSchema([]);
+        setAlert({
+          type: 'error',
+          message: `Backend/Database unavailable: ${err.message}. Please ensure Spring Boot is running and Oracle FREEPDB1 is active.`
+        });
+      })
+      .finally(() => {
+        setLoading(false);
       });
+  };
+
+  useEffect(() => {
+    loadSchema();
   }, []);
 
   const currentTable = schema.find((t) => t.tableName === selectedTable) || schema[0];
@@ -254,6 +278,36 @@ export default function DatabaseSchema({ go }) {
         </div>
       </div>
 
+      {alert && (
+        <div style={{ marginBottom: '16px' }}>
+          <AlertBanner type={alert.type} message={alert.message} onDismiss={() => setAlert(null)} />
+        </div>
+      )}
+
+      {schema.length === 0 ? (
+        <div style={{
+          background: '#fff',
+          borderRadius: '12px',
+          border: '1px solid #dce5df',
+          padding: '48px 24px',
+          textAlign: 'center'
+        }}>
+          <div style={{ fontSize: '36px', marginBottom: '12px' }}>🗄️</div>
+          <h2 style={{ fontSize: '16px', color: '#17251e', marginBottom: '8px' }}>
+            {loading ? 'Querying Oracle Data Dictionary...' : 'No Database Schema Available'}
+          </h2>
+          <p style={{ color: '#687a71', fontSize: '13px', maxWidth: '520px', margin: '0 auto 20px' }}>
+            {loading
+              ? 'Fetching table structures, column definitions, and constraints from Oracle FREEPDB1...'
+              : 'Unable to retrieve schema dictionary because the Spring Boot backend or Oracle database is currently offline.'}
+          </p>
+          {!loading && (
+            <button className="filterBtn" onClick={loadSchema} style={{ cursor: 'pointer', background: '#fff' }}>
+              ↻ Retry Connection
+            </button>
+          )}
+        </div>
+      ) : (
       <div style={{ display: 'grid', gridTemplateColumns: '260px 1fr', gap: '22px', alignItems: 'start' }}>
         {/* Table Selector */}
         <section className="panel" style={{ padding: 0, overflow: 'hidden' }}>
@@ -415,6 +469,7 @@ export default function DatabaseSchema({ go }) {
           </section>
         </div>
       </div>
+      )}
     </main>
   );
 }

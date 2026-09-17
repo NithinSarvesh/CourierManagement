@@ -4,12 +4,6 @@ import Modal from '../components/Modal';
 import AlertBanner from '../components/AlertBanner';
 import api from '../api';
 
-const DEFAULT_ATTEMPTS = [
-  { branchId: 1, courierId: 101, attemptNo: 1, attemptTime: '2026-09-14 16:30', status: 'Delivered' },
-  { branchId: 1, courierId: 102, attemptNo: 2, attemptTime: '2026-09-15 15:00', status: 'Pending' },
-  { branchId: 2, courierId: 103, attemptNo: 1, attemptTime: '2026-09-15 17:30', status: 'Failed' },
-];
-
 const columns = [
   { key: 'branchId', label: 'BRANCH ID' },
   { key: 'courierId', label: 'COURIER ID' },
@@ -38,10 +32,10 @@ export default function Delivery() {
     setLoading(true);
     try {
       const data = await api.getDeliveryAttempts();
-      setAttempts(Array.isArray(data) && data.length > 0 ? data : DEFAULT_ATTEMPTS);
+      setAttempts(Array.isArray(data) ? data : []);
     } catch (err) {
-      setAttempts(DEFAULT_ATTEMPTS);
-      setAlert({ type: 'warning', message: `${err.message} — Showing local delivery attempts view.` });
+      setAttempts([]);
+      setAlert({ type: 'error', message: `Backend/Database unavailable: ${err.message}` });
     } finally {
       setLoading(false);
     }
@@ -72,12 +66,9 @@ export default function Delivery() {
       await api.createDeliveryAttempt(formData);
       setAlert({ type: 'success', message: 'Delivery attempt recorded in Oracle DB.' });
       setIsAddOpen(false);
-      loadAttempts();
+      await loadAttempts();
     } catch (err) {
-      const nextNo = Math.max(...attempts.filter(a => a.branchId === formData.branchId).map(a => a.attemptNo || 0), 0) + 1;
-      setAttempts([...attempts, { ...formData, attemptNo: nextNo, attemptTime: new Date().toISOString().replace('T', ' ').substring(0, 16) }]);
-      setAlert({ type: 'info', message: 'Attempt added (local session preview).' });
-      setIsAddOpen(false);
+      setAlert({ type: 'error', message: `Failed to record delivery attempt: ${err.message}` });
     }
   };
 
@@ -88,11 +79,9 @@ export default function Delivery() {
       await api.updateDeliveryAttempt(editingAttempt.branchId, editingAttempt.attemptNo, formData);
       setAlert({ type: 'success', message: `Attempt #${editingAttempt.attemptNo} updated.` });
       setEditingAttempt(null);
-      loadAttempts();
+      await loadAttempts();
     } catch (err) {
-      setAttempts(attempts.map(a => (a.branchId === editingAttempt.branchId && a.attemptNo === editingAttempt.attemptNo) ? { ...a, ...formData } : a));
-      setAlert({ type: 'info', message: `Attempt #${editingAttempt.attemptNo} updated (local session preview).` });
-      setEditingAttempt(null);
+      setAlert({ type: 'error', message: `Failed to update delivery attempt #${editingAttempt.attemptNo}: ${err.message}` });
     }
   };
 
@@ -102,10 +91,9 @@ export default function Delivery() {
       await api.deleteDeliveryAttempt(deletingAttempt.branchId, deletingAttempt.attemptNo);
       setAlert({ type: 'success', message: `Attempt #${deletingAttempt.attemptNo} deleted.` });
       setDeletingAttempt(null);
-      loadAttempts();
+      await loadAttempts();
     } catch (err) {
-      setAttempts(attempts.filter(a => !(a.branchId === deletingAttempt.branchId && a.attemptNo === deletingAttempt.attemptNo)));
-      setAlert({ type: 'info', message: `Attempt #${deletingAttempt.attemptNo} deleted (local session preview).` });
+      setAlert({ type: 'error', message: `Failed to delete delivery attempt #${deletingAttempt.attemptNo}: ${err.message}` });
       setDeletingAttempt(null);
     }
   };

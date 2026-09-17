@@ -1,4 +1,5 @@
-import { useState } from 'react';
+import { useState, useEffect, useCallback } from 'react';
+import api from './api';
 import Sidebar from './components/Sidebar';
 import Navbar from './components/Navbar';
 import Dashboard from './pages/Dashboard';
@@ -42,9 +43,25 @@ const pages = {
 export default function App() {
   const [active, setActive] = useState('dashboard');
   const [sidebarCollapsed, setSidebarCollapsed] = useState(false);
+  const [backendConnected, setBackendConnected] = useState(null);
   const [title, Page] = pages[active] || pages['dashboard'];
 
   const toggleSidebar = () => setSidebarCollapsed((prev) => !prev);
+
+  const checkConnection = useCallback(async () => {
+    try {
+      const stats = await api.getDashboardStats();
+      setBackendConnected(stats?.connected !== false);
+    } catch {
+      setBackendConnected(false);
+    }
+  }, []);
+
+  useEffect(() => {
+    checkConnection();
+    const interval = setInterval(checkConnection, 15000);
+    return () => clearInterval(interval);
+  }, [checkConnection]);
 
   return (
     <div className="app">
@@ -59,8 +76,10 @@ export default function App() {
           title={title}
           collapsed={sidebarCollapsed}
           onToggleSidebar={toggleSidebar}
+          backendConnected={backendConnected}
+          onRefreshConnection={checkConnection}
         />
-        <Page go={setActive} />
+        <Page go={setActive} backendConnected={backendConnected} />
       </div>
     </div>
   );

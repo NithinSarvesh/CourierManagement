@@ -4,13 +4,6 @@ import Modal from '../components/Modal';
 import AlertBanner from '../components/AlertBanner';
 import api from '../api';
 
-const DEFAULT_PARCELS = [
-  { parcelId: 6001, orderId: 4001, price: 1250.0, courierId: 101, staffId: 204 },
-  { parcelId: 6002, orderId: 4002, price: 780.0, courierId: 102, staffId: 204 },
-  { parcelId: 6003, orderId: 4003, price: 2100.0, courierId: 103, staffId: 203 },
-  { parcelId: 6004, orderId: 4004, price: 560.0, courierId: 101, staffId: 204 },
-];
-
 const columns = [
   { key: 'parcelId', label: 'PARCEL ID' },
   { key: 'orderId', label: 'ORDER ID' },
@@ -39,10 +32,10 @@ export default function Parcels() {
     setLoading(true);
     try {
       const data = await api.getParcels();
-      setParcels(Array.isArray(data) && data.length > 0 ? data : DEFAULT_PARCELS);
+      setParcels(Array.isArray(data) ? data : []);
     } catch (err) {
-      setParcels(DEFAULT_PARCELS);
-      setAlert({ type: 'warning', message: `${err.message} — Showing local parcels view.` });
+      setParcels([]);
+      setAlert({ type: 'error', message: `Backend/Database unavailable: ${err.message}` });
     } finally {
       setLoading(false);
     }
@@ -73,12 +66,9 @@ export default function Parcels() {
       await api.createParcel(formData);
       setAlert({ type: 'success', message: 'Parcel registered and saved to Oracle PARCEL table.' });
       setIsAddOpen(false);
-      loadParcels();
+      await loadParcels();
     } catch (err) {
-      const newId = Math.max(...parcels.map(p => p.parcelId || 0), 6000) + 1;
-      setParcels([...parcels, { parcelId: newId, ...formData }]);
-      setAlert({ type: 'info', message: 'Parcel added (local session preview).' });
-      setIsAddOpen(false);
+      setAlert({ type: 'error', message: `Failed to add parcel: ${err.message}` });
     }
   };
 
@@ -89,11 +79,9 @@ export default function Parcels() {
       await api.updateParcel(editingParcel.parcelId, formData);
       setAlert({ type: 'success', message: `Parcel #${editingParcel.parcelId} updated successfully.` });
       setEditingParcel(null);
-      loadParcels();
+      await loadParcels();
     } catch (err) {
-      setParcels(parcels.map(p => p.parcelId === editingParcel.parcelId ? { ...p, ...formData } : p));
-      setAlert({ type: 'info', message: `Parcel #${editingParcel.parcelId} updated (local session preview).` });
-      setEditingParcel(null);
+      setAlert({ type: 'error', message: `Failed to update parcel #${editingParcel.parcelId}: ${err.message}` });
     }
   };
 
@@ -103,10 +91,9 @@ export default function Parcels() {
       await api.deleteParcel(deletingParcel.parcelId);
       setAlert({ type: 'success', message: `Parcel #${deletingParcel.parcelId} deleted successfully.` });
       setDeletingParcel(null);
-      loadParcels();
+      await loadParcels();
     } catch (err) {
-      setParcels(parcels.filter(p => p.parcelId !== deletingParcel.parcelId));
-      setAlert({ type: 'info', message: `Parcel #${deletingParcel.parcelId} deleted (local session preview).` });
+      setAlert({ type: 'error', message: `Failed to delete parcel #${deletingParcel.parcelId}: ${err.message}` });
       setDeletingParcel(null);
     }
   };

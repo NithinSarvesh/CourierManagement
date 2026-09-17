@@ -310,6 +310,17 @@ header p {
     box-shadow: 0 0 6px #62a85c;
 }
 
+.status.offline {
+    background: #fdf2f2;
+    border-color: #fecaca;
+    color: #991b1b;
+}
+
+.status-dot.offline {
+    background: #dc2626;
+    box-shadow: 0 0 6px rgba(220, 38, 38, 0.6);
+}
+
 /* ================= CONTENT CONTAINER ================= */
 
 .content {

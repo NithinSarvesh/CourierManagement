@@ -4,13 +4,6 @@ import Modal from '../components/Modal';
 import AlertBanner from '../components/AlertBanner';
 import api from '../api';
 
-const DEFAULT_COURIERS = [
-  { courierId: 101, name: 'Express Logistics', email: 'contact@expresslogistics.com' },
-  { courierId: 102, name: 'FastTrack Couriers', email: 'support@fasttrack.com' },
-  { courierId: 103, name: 'QuickShip India', email: 'info@quickship.com' },
-  { courierId: 104, name: 'BlueDart Partner', email: 'bluedart@courierhub.com' },
-];
-
 const columns = [
   { key: 'courierId', label: 'COURIER ID' },
   { key: 'name', label: 'COURIER NAME' },
@@ -32,10 +25,10 @@ export default function Couriers() {
     setLoading(true);
     try {
       const data = await api.getCouriers();
-      setCouriers(Array.isArray(data) && data.length > 0 ? data : DEFAULT_COURIERS);
+      setCouriers(Array.isArray(data) ? data : []);
     } catch (err) {
-      setCouriers(DEFAULT_COURIERS);
-      setAlert({ type: 'warning', message: `${err.message} — Showing local couriers view.` });
+      setCouriers([]);
+      setAlert({ type: 'error', message: `Backend/Database unavailable: ${err.message}` });
     } finally {
       setLoading(false);
     }
@@ -61,12 +54,9 @@ export default function Couriers() {
       await api.createCourier(formData);
       setAlert({ type: 'success', message: 'Courier partner added successfully.' });
       setIsAddOpen(false);
-      loadCouriers();
+      await loadCouriers();
     } catch (err) {
-      const newId = Math.max(...couriers.map(c => c.courierId || 0), 100) + 1;
-      setCouriers([...couriers, { courierId: newId, ...formData }]);
-      setAlert({ type: 'info', message: 'Courier added (local session preview).' });
-      setIsAddOpen(false);
+      setAlert({ type: 'error', message: `Failed to add courier: ${err.message}` });
     }
   };
 
@@ -77,11 +67,9 @@ export default function Couriers() {
       await api.updateCourier(editingCourier.courierId, formData);
       setAlert({ type: 'success', message: `Courier #${editingCourier.courierId} updated.` });
       setEditingCourier(null);
-      loadCouriers();
+      await loadCouriers();
     } catch (err) {
-      setCouriers(couriers.map(c => c.courierId === editingCourier.courierId ? { ...c, ...formData } : c));
-      setAlert({ type: 'info', message: `Courier #${editingCourier.courierId} updated (local session preview).` });
-      setEditingCourier(null);
+      setAlert({ type: 'error', message: `Failed to update courier #${editingCourier.courierId}: ${err.message}` });
     }
   };
 
@@ -91,10 +79,9 @@ export default function Couriers() {
       await api.deleteCourier(deletingCourier.courierId);
       setAlert({ type: 'success', message: `Courier #${deletingCourier.courierId} removed.` });
       setDeletingCourier(null);
-      loadCouriers();
+      await loadCouriers();
     } catch (err) {
-      setCouriers(couriers.filter(c => c.courierId !== deletingCourier.courierId));
-      setAlert({ type: 'info', message: `Courier #${deletingCourier.courierId} removed (local session preview).` });
+      setAlert({ type: 'error', message: `Failed to delete courier #${deletingCourier.courierId}: ${err.message}` });
       setDeletingCourier(null);
     }
   };

@@ -1,15 +1,8 @@
 import { useState, useEffect } from 'react';
 import StatCard from '../components/StatCard';
 import StatusBadge from '../components/StatusBadge';
+import AlertBanner from '../components/AlertBanner';
 import api from '../api';
-
-const DEFAULT_ORDERS = [
-  { id: '4001', customer: 'Rahul Sharma', date: '14 Sep 2026', amount: 1250, status: 'Delivered' },
-  { id: '4002', customer: 'Priya Patel', date: '15 Sep 2026', amount: 780, status: 'In Transit' },
-  { id: '4003', customer: 'Arjun Mehta', date: '15 Sep 2026', amount: 2100, status: 'Processing' },
-  { id: '4004', customer: 'Neha Singh', date: '16 Sep 2026', amount: 560, status: 'Delivered' },
-  { id: '4005', customer: 'Rahul Sharma', date: '16 Sep 2026', amount: 1800, status: 'Pending' },
-];
 
 const ENTITY_SUMMARIES = [
   {
@@ -189,28 +182,29 @@ const ENTITY_SUMMARIES = [
 
 export default function Dashboard({ go }) {
   const [stats, setStats] = useState({
-    totalCustomers: 5,
-    totalOrders: 5,
-    totalParcels: 4,
-    totalCouriers: 4,
-    totalBranches: 4,
-    totalStaff: 5,
-    totalVehicles: 3,
-    totalPayments: 5,
-    pendingDeliveries: 3,
-    activeParcels: 3,
-    totalRevenue: 6490.0,
+    totalCustomers: 0,
+    totalOrders: 0,
+    totalParcels: 0,
+    totalCouriers: 0,
+    totalBranches: 0,
+    totalStaff: 0,
+    totalVehicles: 0,
+    totalPayments: 0,
+    pendingDeliveries: 0,
+    activeParcels: 0,
+    totalRevenue: 0.0,
     connected: false,
-    recentOrders: DEFAULT_ORDERS,
+    recentOrders: [],
   });
   const [loading, setLoading] = useState(true);
+  const [alert, setAlert] = useState(null);
   const [selectedEntity, setSelectedEntity] = useState(ENTITY_SUMMARIES[0]);
   const [expandedEntities, setExpandedEntities] = useState({ CUSTOMER: true });
 
   useEffect(() => {
     api.getDashboardStats()
       .then((data) => {
-        if (data) {
+        if (data && data.connected !== false) {
           const recent = (data.recentOrders && data.recentOrders.length > 0)
             ? data.recentOrders.map(o => ({
                 id: o.ORDER_ID || o.order_id || o.id,
@@ -219,27 +213,68 @@ export default function Dashboard({ go }) {
                 amount: o.AMOUNT || o.amount,
                 status: o.STATUS || o.status || 'Pending'
               }))
-            : DEFAULT_ORDERS;
+            : [];
 
           setStats({
-            totalCustomers: data.totalCustomers ?? 5,
-            totalOrders: data.totalOrders ?? 5,
-            totalParcels: data.totalParcels ?? 4,
-            totalCouriers: data.totalCouriers ?? 4,
-            totalBranches: data.totalBranches ?? 4,
-            totalStaff: data.totalStaff ?? 5,
-            totalVehicles: data.totalVehicles ?? 3,
-            totalPayments: data.totalPayments ?? 5,
-            pendingDeliveries: data.pendingDeliveries ?? 3,
-            activeParcels: data.activeParcels ?? 3,
-            totalRevenue: data.totalRevenue ?? 6490.0,
-            connected: data.connected ?? false,
+            totalCustomers: data.totalCustomers ?? 0,
+            totalOrders: data.totalOrders ?? 0,
+            totalParcels: data.totalParcels ?? 0,
+            totalCouriers: data.totalCouriers ?? 0,
+            totalBranches: data.totalBranches ?? 0,
+            totalStaff: data.totalStaff ?? 0,
+            totalVehicles: data.totalVehicles ?? 0,
+            totalPayments: data.totalPayments ?? 0,
+            pendingDeliveries: data.pendingDeliveries ?? 0,
+            activeParcels: data.activeParcels ?? 0,
+            totalRevenue: data.totalRevenue ?? 0.0,
+            connected: true,
             recentOrders: recent
+          });
+          setAlert(null);
+        } else {
+          setStats(prev => ({
+            ...prev,
+            totalCustomers: 0,
+            totalOrders: 0,
+            totalParcels: 0,
+            totalCouriers: 0,
+            totalBranches: 0,
+            totalStaff: 0,
+            totalVehicles: 0,
+            totalPayments: 0,
+            pendingDeliveries: 0,
+            activeParcels: 0,
+            totalRevenue: 0.0,
+            connected: false,
+            recentOrders: []
+          }));
+          setAlert({
+            type: 'error',
+            message: data?.error ? `Oracle database error: ${data.error}` : 'Oracle database is currently unreachable from backend.'
           });
         }
       })
-      .catch(() => {
-        // Fallback gracefully
+      .catch((err) => {
+        setStats(prev => ({
+          ...prev,
+          totalCustomers: 0,
+          totalOrders: 0,
+          totalParcels: 0,
+          totalCouriers: 0,
+          totalBranches: 0,
+          totalStaff: 0,
+          totalVehicles: 0,
+          totalPayments: 0,
+          pendingDeliveries: 0,
+          activeParcels: 0,
+          totalRevenue: 0.0,
+          connected: false,
+          recentOrders: []
+        }));
+        setAlert({
+          type: 'error',
+          message: `Backend unavailable: ${err.message}. Please ensure Spring Boot is running.`
+        });
       })
       .finally(() => {
         setLoading(false);
@@ -306,10 +341,17 @@ export default function Dashboard({ go }) {
         </div>
       </div>
 
+      {/* Alert Banner if backend error */}
+      {alert && (
+        <div style={{ marginBottom: '16px' }}>
+          <AlertBanner type={alert.type} message={alert.message} onDismiss={() => setAlert(null)} />
+        </div>
+      )}
+
       {/* Database Connection Indicator Banner */}
       <div style={{
-        background: stats.connected ? '#eef8f2' : '#fcf6ed',
-        border: `1px solid ${stats.connected ? '#b8e2c8' : '#fae3c6'}`,
+        background: stats.connected ? '#eef8f2' : '#fdf2f2',
+        border: `1px solid ${stats.connected ? '#b8e2c8' : '#fecaca'}`,
         borderRadius: '10px',
         padding: '12px 18px',
         marginBottom: '20px',
@@ -325,15 +367,19 @@ export default function Dashboard({ go }) {
             width: '9px',
             height: '9px',
             borderRadius: '50%',
-            background: stats.connected ? '#62a85c' : '#e67e22',
-            boxShadow: `0 0 6px ${stats.connected ? '#62a85c' : '#e67e22'}`
+            background: stats.connected ? '#62a85c' : '#dc2626',
+            boxShadow: `0 0 6px ${stats.connected ? '#62a85c' : '#dc2626'}`
           }} />
           <div>
-            <strong style={{ fontSize: '13px', color: '#17251e' }}>
-              {stats.connected ? 'Oracle Database Connected (FREEPDB1)' : 'Oracle Demonstration Mode'}
+            <strong style={{ fontSize: '13px', color: stats.connected ? '#17251e' : '#991b1b' }}>
+              {stats.connected ? 'Oracle Database Connected (FREEPDB1)' : 'Backend / Database Offline (FREEPDB1 Unavailable)'}
             </strong>
-            <span style={{ fontSize: '11px', color: '#556960', marginLeft: '10px' }}>
-              Host: <code>localhost:1521</code> &bull; Schema: <code>COURIER_APP</code>
+            <span style={{ fontSize: '11px', color: stats.connected ? '#556960' : '#b91c1c', marginLeft: '10px' }}>
+              {stats.connected ? (
+                <>Host: <code>localhost:1521</code> &bull; Schema: <code>COURIER_APP</code></>
+              ) : (
+                <>Spring Boot backend unreachable or Oracle connection unavailable</>
+              )}
             </span>
           </div>
         </div>
@@ -574,15 +620,23 @@ export default function Dashboard({ go }) {
                 </tr>
               </thead>
               <tbody>
-                {stats.recentOrders.map((o) => (
-                  <tr key={o.id}>
-                    <td><b>ORD-{o.id}</b></td>
-                    <td>{o.customer}</td>
-                    <td>{o.date}</td>
-                    <td>{formatCurrency(o.amount)}</td>
-                    <td><StatusBadge>{o.status}</StatusBadge></td>
+                {stats.recentOrders && stats.recentOrders.length > 0 ? (
+                  stats.recentOrders.map((o) => (
+                    <tr key={o.id}>
+                      <td><b>ORD-{o.id}</b></td>
+                      <td>{o.customer}</td>
+                      <td>{o.date}</td>
+                      <td>{formatCurrency(o.amount)}</td>
+                      <td><StatusBadge>{o.status}</StatusBadge></td>
+                    </tr>
+                  ))
+                ) : (
+                  <tr>
+                    <td colSpan="5" style={{ textAlign: 'center', padding: '24px 16px', color: '#7a8e83' }}>
+                      {stats.connected ? 'No recent orders recorded in Oracle database.' : 'Backend / Database unavailable.'}
+                    </td>
                   </tr>
-                ))}
+                )}
               </tbody>
             </table>
           </div>

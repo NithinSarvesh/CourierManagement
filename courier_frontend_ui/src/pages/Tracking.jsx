@@ -4,13 +4,6 @@ import Modal from '../components/Modal';
 import AlertBanner from '../components/AlertBanner';
 import api from '../api';
 
-const DEFAULT_EVENTS = [
-  { eventId: 7001, parcelId: 6001, eventType: 'Picked Up', eventTime: '2026-09-14 11:00' },
-  { eventId: 7002, parcelId: 6001, eventType: 'In Transit', eventTime: '2026-09-14 14:30' },
-  { eventId: 7003, parcelId: 6001, eventType: 'Delivered', eventTime: '2026-09-14 18:00' },
-  { eventId: 7004, parcelId: 6002, eventType: 'In Transit', eventTime: '2026-09-15 12:00' },
-];
-
 const columns = [
   { key: 'eventId', label: 'EVENT ID' },
   { key: 'parcelId', label: 'PARCEL ID' },
@@ -36,10 +29,10 @@ export default function Tracking() {
     setLoading(true);
     try {
       const data = await api.getTrackingEvents();
-      setEvents(Array.isArray(data) && data.length > 0 ? data : DEFAULT_EVENTS);
+      setEvents(Array.isArray(data) ? data : []);
     } catch (err) {
-      setEvents(DEFAULT_EVENTS);
-      setAlert({ type: 'warning', message: `${err.message} — Showing local tracking view.` });
+      setEvents([]);
+      setAlert({ type: 'error', message: `Backend/Database unavailable: ${err.message}` });
     } finally {
       setLoading(false);
     }
@@ -68,12 +61,9 @@ export default function Tracking() {
       await api.createTrackingEvent(formData);
       setAlert({ type: 'success', message: 'Tracking event recorded in Oracle TRACKING_EVENT table.' });
       setIsAddOpen(false);
-      loadEvents();
+      await loadEvents();
     } catch (err) {
-      const newId = Math.max(...events.map(e => e.eventId || 0), 7000) + 1;
-      setEvents([...events, { eventId: newId, eventTime: new Date().toISOString().replace('T', ' ').substring(0, 16), ...formData }]);
-      setAlert({ type: 'info', message: 'Tracking event added (local session preview).' });
-      setIsAddOpen(false);
+      setAlert({ type: 'error', message: `Failed to record tracking event: ${err.message}` });
     }
   };
 
@@ -84,11 +74,9 @@ export default function Tracking() {
       await api.updateTrackingEvent(editingEvent.eventId, formData);
       setAlert({ type: 'success', message: `Tracking event #${editingEvent.eventId} updated.` });
       setEditingEvent(null);
-      loadEvents();
+      await loadEvents();
     } catch (err) {
-      setEvents(events.map(e => e.eventId === editingEvent.eventId ? { ...e, ...formData } : e));
-      setAlert({ type: 'info', message: `Tracking event #${editingEvent.eventId} updated (local session preview).` });
-      setEditingEvent(null);
+      setAlert({ type: 'error', message: `Failed to update tracking event #${editingEvent.eventId}: ${err.message}` });
     }
   };
 
@@ -98,10 +86,9 @@ export default function Tracking() {
       await api.deleteTrackingEvent(deletingEvent.eventId);
       setAlert({ type: 'success', message: `Tracking event #${deletingEvent.eventId} deleted.` });
       setDeletingEvent(null);
-      loadEvents();
+      await loadEvents();
     } catch (err) {
-      setEvents(events.filter(e => e.eventId !== deletingEvent.eventId));
-      setAlert({ type: 'info', message: `Tracking event #${deletingEvent.eventId} deleted (local session preview).` });
+      setAlert({ type: 'error', message: `Failed to delete tracking event #${deletingEvent.eventId}: ${err.message}` });
       setDeletingEvent(null);
     }
   };

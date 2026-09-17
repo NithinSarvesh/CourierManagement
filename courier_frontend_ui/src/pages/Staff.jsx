@@ -4,14 +4,6 @@ import Modal from '../components/Modal';
 import AlertBanner from '../components/AlertBanner';
 import api from '../api';
 
-const DEFAULT_STAFF = [
-  { staffId: 201, role: 'Manager', branchId: 1, name: 'Ravi Kumar', department: 'Operations' },
-  { staffId: 202, role: 'Customer Support', branchId: 1, name: 'Anita Rao', department: 'Support' },
-  { staffId: 203, role: 'Accountant', branchId: 2, name: 'Vikram Das', department: 'Finance' },
-  { staffId: 204, role: 'Delivery Boy', branchId: 3, name: 'Suresh Nair', department: 'Logistics' },
-  { staffId: 205, role: 'Driver', branchId: 1, name: 'Manoj Verma', department: 'Transport' },
-];
-
 const columns = [
   { key: 'staffId', label: 'STAFF ID' },
   { key: 'name', label: 'NAME' },
@@ -40,10 +32,10 @@ export default function Staff() {
     setLoading(true);
     try {
       const data = await api.getStaff();
-      setStaff(Array.isArray(data) && data.length > 0 ? data : DEFAULT_STAFF);
+      setStaff(Array.isArray(data) ? data : []);
     } catch (err) {
-      setStaff(DEFAULT_STAFF);
-      setAlert({ type: 'warning', message: `${err.message} — Showing local staff view.` });
+      setStaff([]);
+      setAlert({ type: 'error', message: `Backend/Database unavailable: ${err.message}` });
     } finally {
       setLoading(false);
     }
@@ -74,12 +66,9 @@ export default function Staff() {
       await api.createStaff(formData);
       setAlert({ type: 'success', message: 'Staff member added to Oracle STAFF table.' });
       setIsAddOpen(false);
-      loadStaff();
+      await loadStaff();
     } catch (err) {
-      const newId = Math.max(...staff.map(s => s.staffId || 0), 200) + 1;
-      setStaff([...staff, { staffId: newId, ...formData }]);
-      setAlert({ type: 'info', message: 'Staff added (local session preview).' });
-      setIsAddOpen(false);
+      setAlert({ type: 'error', message: `Failed to add staff member: ${err.message}` });
     }
   };
 
@@ -90,11 +79,9 @@ export default function Staff() {
       await api.updateStaff(editingStaff.staffId, formData);
       setAlert({ type: 'success', message: `Staff #${editingStaff.staffId} updated.` });
       setEditingStaff(null);
-      loadStaff();
+      await loadStaff();
     } catch (err) {
-      setStaff(staff.map(s => s.staffId === editingStaff.staffId ? { ...s, ...formData } : s));
-      setAlert({ type: 'info', message: `Staff #${editingStaff.staffId} updated (local session preview).` });
-      setEditingStaff(null);
+      setAlert({ type: 'error', message: `Failed to update staff #${editingStaff.staffId}: ${err.message}` });
     }
   };
 
@@ -104,10 +91,9 @@ export default function Staff() {
       await api.deleteStaff(deletingStaff.staffId);
       setAlert({ type: 'success', message: `Staff #${deletingStaff.staffId} deleted.` });
       setDeletingStaff(null);
-      loadStaff();
+      await loadStaff();
     } catch (err) {
-      setStaff(staff.filter(s => s.staffId !== deletingStaff.staffId));
-      setAlert({ type: 'info', message: `Staff #${deletingStaff.staffId} deleted (local session preview).` });
+      setAlert({ type: 'error', message: `Failed to delete staff #${deletingStaff.staffId}: ${err.message}` });
       setDeletingStaff(null);
     }
   };

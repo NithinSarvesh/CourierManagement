@@ -4,14 +4,6 @@ import Modal from '../components/Modal';
 import AlertBanner from '../components/AlertBanner';
 import api from '../api';
 
-const DEFAULT_CUSTOMERS = [
-  { customerId: 1001, name: 'Rahul Sharma', email: 'rahul.sharma@example.com', street: '12 Anna Salai', city: 'Chennai', pin: '600001' },
-  { customerId: 1002, name: 'Priya Patel', email: 'priya.patel@example.com', street: '45 Marine Drive', city: 'Mumbai', pin: '400001' },
-  { customerId: 1003, name: 'Arjun Mehta', email: 'arjun.mehta@example.com', street: '88 MG Road', city: 'Bengaluru', pin: '560001' },
-  { customerId: 1004, name: 'Neha Singh', email: 'neha.singh@example.com', street: '23 Connaught Place', city: 'Delhi', pin: '110001' },
-  { customerId: 1005, name: 'Karthik Raja', email: 'karthik.raja@example.com', street: '7 Gandhi Road', city: 'Hyderabad', pin: '500001' },
-];
-
 const columns = [
   { key: 'customerId', label: 'CUSTOMER ID' },
   { key: 'name', label: 'NAME' },
@@ -43,10 +35,10 @@ export default function Customers() {
     setLoading(true);
     try {
       const data = await api.getCustomers();
-      setCustomers(Array.isArray(data) && data.length > 0 ? data : DEFAULT_CUSTOMERS);
+      setCustomers(Array.isArray(data) ? data : []);
     } catch (err) {
-      setCustomers(DEFAULT_CUSTOMERS);
-      setAlert({ type: 'warning', message: `${err.message} — Showing local database view.` });
+      setCustomers([]);
+      setAlert({ type: 'error', message: `Backend/Database unavailable: ${err.message}` });
     } finally {
       setLoading(false);
     }
@@ -78,13 +70,9 @@ export default function Customers() {
       await api.createCustomer(formData);
       setAlert({ type: 'success', message: 'Customer added successfully to Oracle Database.' });
       setIsAddOpen(false);
-      loadCustomers();
+      await loadCustomers();
     } catch (err) {
-      // Local fallback insert
-      const newId = Math.max(...customers.map(c => c.customerId || 0), 1000) + 1;
-      setCustomers([...customers, { customerId: newId, ...formData }]);
-      setAlert({ type: 'info', message: 'Customer registered (local session preview).' });
-      setIsAddOpen(false);
+      setAlert({ type: 'error', message: `Failed to add customer: ${err.message}` });
     }
   };
 
@@ -95,11 +83,9 @@ export default function Customers() {
       await api.updateCustomer(editingCustomer.customerId, formData);
       setAlert({ type: 'success', message: `Customer #${editingCustomer.customerId} updated successfully.` });
       setEditingCustomer(null);
-      loadCustomers();
+      await loadCustomers();
     } catch (err) {
-      setCustomers(customers.map(c => c.customerId === editingCustomer.customerId ? { ...c, ...formData } : c));
-      setAlert({ type: 'info', message: `Customer #${editingCustomer.customerId} updated (local session preview).` });
-      setEditingCustomer(null);
+      setAlert({ type: 'error', message: `Failed to update customer #${editingCustomer.customerId}: ${err.message}` });
     }
   };
 
@@ -109,10 +95,9 @@ export default function Customers() {
       await api.deleteCustomer(deletingCustomer.customerId);
       setAlert({ type: 'success', message: `Customer #${deletingCustomer.customerId} deleted successfully.` });
       setDeletingCustomer(null);
-      loadCustomers();
+      await loadCustomers();
     } catch (err) {
-      setCustomers(customers.filter(c => c.customerId !== deletingCustomer.customerId));
-      setAlert({ type: 'info', message: `Customer #${deletingCustomer.customerId} removed (local session preview).` });
+      setAlert({ type: 'error', message: `Failed to delete customer #${deletingCustomer.customerId}: ${err.message}` });
       setDeletingCustomer(null);
     }
   };

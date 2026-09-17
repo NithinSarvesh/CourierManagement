@@ -4,14 +4,6 @@ import Modal from '../components/Modal';
 import AlertBanner from '../components/AlertBanner';
 import api from '../api';
 
-const DEFAULT_PAYMENTS = [
-  { paymentId: 5001, customerId: 1001, orderId: 4001, amount: 1250.0, status: 'Paid' },
-  { paymentId: 5002, customerId: 1002, orderId: 4002, amount: 780.0, status: 'Paid' },
-  { paymentId: 5003, customerId: 1003, orderId: 4003, amount: 2100.0, status: 'Pending' },
-  { paymentId: 5004, customerId: 1004, orderId: 4004, amount: 560.0, status: 'Paid' },
-  { paymentId: 5005, customerId: 1001, orderId: 4005, amount: 1800.0, status: 'Pending' },
-];
-
 const columns = [
   { key: 'paymentId', label: 'PAYMENT ID' },
   { key: 'customerId', label: 'CUSTOMER ID' },
@@ -40,10 +32,10 @@ export default function Payments() {
     setLoading(true);
     try {
       const data = await api.getPayments();
-      setPayments(Array.isArray(data) && data.length > 0 ? data : DEFAULT_PAYMENTS);
+      setPayments(Array.isArray(data) ? data : []);
     } catch (err) {
-      setPayments(DEFAULT_PAYMENTS);
-      setAlert({ type: 'warning', message: `${err.message} — Showing local payments view.` });
+      setPayments([]);
+      setAlert({ type: 'error', message: `Backend/Database unavailable: ${err.message}` });
     } finally {
       setLoading(false);
     }
@@ -74,12 +66,9 @@ export default function Payments() {
       await api.createPayment(formData);
       setAlert({ type: 'success', message: 'Payment recorded in Oracle PAYMENT table.' });
       setIsAddOpen(false);
-      loadPayments();
+      await loadPayments();
     } catch (err) {
-      const newId = Math.max(...payments.map(p => p.paymentId || 0), 5000) + 1;
-      setPayments([...payments, { paymentId: newId, ...formData }]);
-      setAlert({ type: 'info', message: 'Payment added (local session preview).' });
-      setIsAddOpen(false);
+      setAlert({ type: 'error', message: `Failed to record payment: ${err.message}` });
     }
   };
 
@@ -90,11 +79,9 @@ export default function Payments() {
       await api.updatePayment(editingPayment.paymentId, formData);
       setAlert({ type: 'success', message: `Payment #${editingPayment.paymentId} updated.` });
       setEditingPayment(null);
-      loadPayments();
+      await loadPayments();
     } catch (err) {
-      setPayments(payments.map(p => p.paymentId === editingPayment.paymentId ? { ...p, ...formData } : p));
-      setAlert({ type: 'info', message: `Payment #${editingPayment.paymentId} updated (local session preview).` });
-      setEditingPayment(null);
+      setAlert({ type: 'error', message: `Failed to update payment #${editingPayment.paymentId}: ${err.message}` });
     }
   };
 
@@ -104,10 +91,9 @@ export default function Payments() {
       await api.deletePayment(deletingPayment.paymentId);
       setAlert({ type: 'success', message: `Payment #${deletingPayment.paymentId} deleted.` });
       setDeletingPayment(null);
-      loadPayments();
+      await loadPayments();
     } catch (err) {
-      setPayments(payments.filter(p => p.paymentId !== deletingPayment.paymentId));
-      setAlert({ type: 'info', message: `Payment #${deletingPayment.paymentId} deleted (local session preview).` });
+      setAlert({ type: 'error', message: `Failed to delete payment #${deletingPayment.paymentId}: ${err.message}` });
       setDeletingPayment(null);
     }
   };

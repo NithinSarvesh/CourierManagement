@@ -4,12 +4,6 @@ import Modal from '../components/Modal';
 import AlertBanner from '../components/AlertBanner';
 import api from '../api';
 
-const DEFAULT_VEHICLES = [
-  { vehicleNo: 'TN01AB1234', licenseNo: 'LIC-8821', staffId: 204 },
-  { vehicleNo: 'MH02CD5678', licenseNo: 'LIC-7742', staffId: 205 },
-  { vehicleNo: 'KA03EF9012', licenseNo: 'LIC-6634', staffId: 205 },
-];
-
 const columns = [
   { key: 'vehicleNo', label: 'VEHICLE NO' },
   { key: 'licenseNo', label: 'DRIVER LICENSE' },
@@ -35,10 +29,10 @@ export default function Vehicles() {
     setLoading(true);
     try {
       const data = await api.getVehicles();
-      setVehicles(Array.isArray(data) && data.length > 0 ? data : DEFAULT_VEHICLES);
+      setVehicles(Array.isArray(data) ? data : []);
     } catch (err) {
-      setVehicles(DEFAULT_VEHICLES);
-      setAlert({ type: 'warning', message: `${err.message} — Showing local vehicles view.` });
+      setVehicles([]);
+      setAlert({ type: 'error', message: `Backend/Database unavailable: ${err.message}` });
     } finally {
       setLoading(false);
     }
@@ -68,11 +62,9 @@ export default function Vehicles() {
       await api.createVehicle(formData);
       setAlert({ type: 'success', message: 'Vehicle added to Oracle VEHICLE table.' });
       setIsAddOpen(false);
-      loadVehicles();
+      await loadVehicles();
     } catch (err) {
-      setVehicles([...vehicles, { ...formData }]);
-      setAlert({ type: 'info', message: 'Vehicle added (local session preview).' });
-      setIsAddOpen(false);
+      setAlert({ type: 'error', message: `Failed to add vehicle: ${err.message}` });
     }
   };
 
@@ -83,11 +75,9 @@ export default function Vehicles() {
       await api.updateVehicle(editingVehicle.vehicleNo, formData);
       setAlert({ type: 'success', message: `Vehicle ${editingVehicle.vehicleNo} updated.` });
       setEditingVehicle(null);
-      loadVehicles();
+      await loadVehicles();
     } catch (err) {
-      setVehicles(vehicles.map(v => v.vehicleNo === editingVehicle.vehicleNo ? { ...v, ...formData } : v));
-      setAlert({ type: 'info', message: `Vehicle ${editingVehicle.vehicleNo} updated (local session preview).` });
-      setEditingVehicle(null);
+      setAlert({ type: 'error', message: `Failed to update vehicle ${editingVehicle.vehicleNo}: ${err.message}` });
     }
   };
 
@@ -97,10 +87,9 @@ export default function Vehicles() {
       await api.deleteVehicle(deletingVehicle.vehicleNo);
       setAlert({ type: 'success', message: `Vehicle ${deletingVehicle.vehicleNo} removed.` });
       setDeletingVehicle(null);
-      loadVehicles();
+      await loadVehicles();
     } catch (err) {
-      setVehicles(vehicles.filter(v => v.vehicleNo !== deletingVehicle.vehicleNo));
-      setAlert({ type: 'info', message: `Vehicle ${deletingVehicle.vehicleNo} removed (local session preview).` });
+      setAlert({ type: 'error', message: `Failed to delete vehicle ${deletingVehicle.vehicleNo}: ${err.message}` });
       setDeletingVehicle(null);
     }
   };

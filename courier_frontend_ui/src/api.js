@@ -1,6 +1,14 @@
-const API_BASE = 'http://localhost:8081/api';
+const API_BASE =
+  import.meta.env.VITE_API_BASE ||
+  (import.meta.env.DEV ? 'http://localhost:8081/api' : '');
 
 async function request(endpoint, options = {}) {
+  if (!API_BASE) {
+    throw new Error(
+      'Configuration Error: VITE_API_BASE is not configured. In production, please set VITE_API_BASE to your backend API URL.'
+    );
+  }
+
   const url = `${API_BASE}${endpoint}`;
   const config = {
     headers: {
@@ -29,7 +37,7 @@ async function request(endpoint, options = {}) {
     return data;
   } catch (error) {
     if (error.name === 'TypeError' && error.message.includes('Failed to fetch')) {
-      throw new Error('Backend server is offline or unreachable at http://localhost:8081. Please ensure Spring Boot is running.');
+      throw new Error(`Backend unavailable at ${API_BASE}. Please ensure Spring Boot is running and accessible.`);
     }
     throw error;
   }
@@ -39,46 +47,46 @@ export const api = {
   // Customer
   getCustomers: () => request('/customers'),
   getCustomer: (id) => request(`/customers/${id}`),
-  createCustomer: (data) => request('/customers', { method: 'POST', body: data }),
-  updateCustomer: (id, data) => request(`/customers/${id}`, { method: 'PUT', body: data }),
+  createCustomer: (data) => request('/customers', { method: 'POST', body: { customerId: 0, ...data } }),
+  updateCustomer: (id, data) => request(`/customers/${id}`, { method: 'PUT', body: { customerId: id, ...data } }),
   deleteCustomer: (id) => request(`/customers/${id}`, { method: 'DELETE' }),
   searchCustomers: (name) => request(`/customers/search?name=${encodeURIComponent(name)}`),
 
   // Courier
   getCouriers: () => request('/couriers'),
   getCourier: (id) => request(`/couriers/${id}`),
-  createCourier: (data) => request('/couriers', { method: 'POST', body: data }),
-  updateCourier: (id, data) => request(`/couriers/${id}`, { method: 'PUT', body: data }),
+  createCourier: (data) => request('/couriers', { method: 'POST', body: { courierId: 0, ...data } }),
+  updateCourier: (id, data) => request(`/couriers/${id}`, { method: 'PUT', body: { courierId: id, ...data } }),
   deleteCourier: (id) => request(`/couriers/${id}`, { method: 'DELETE' }),
   searchCouriers: (name) => request(`/couriers/search?name=${encodeURIComponent(name)}`),
 
   // Branch
   getBranches: () => request('/branches'),
   getBranch: (id) => request(`/branches/${id}`),
-  createBranch: (data) => request('/branches', { method: 'POST', body: data }),
-  updateBranch: (id, data) => request(`/branches/${id}`, { method: 'PUT', body: data }),
+  createBranch: (data) => request('/branches', { method: 'POST', body: { branchId: 0, ...data } }),
+  updateBranch: (id, data) => request(`/branches/${id}`, { method: 'PUT', body: { branchId: id, ...data } }),
   deleteBranch: (id) => request(`/branches/${id}`, { method: 'DELETE' }),
 
   // Staff
   getStaff: () => request('/staff'),
   getStaffById: (id) => request(`/staff/${id}`),
-  createStaff: (data) => request('/staff', { method: 'POST', body: data }),
-  updateStaff: (id, data) => request(`/staff/${id}`, { method: 'PUT', body: data }),
+  createStaff: (data) => request('/staff', { method: 'POST', body: { staffId: 0, ...data } }),
+  updateStaff: (id, data) => request(`/staff/${id}`, { method: 'PUT', body: { staffId: id, ...data } }),
   deleteStaff: (id) => request(`/staff/${id}`, { method: 'DELETE' }),
   getStaffByBranch: (branchId) => request(`/staff/branch/${branchId}`),
 
   // Courier Service
   getServices: () => request('/courier-services'),
   getService: (id) => request(`/courier-services/${id}`),
-  createService: (data) => request('/courier-services', { method: 'POST', body: data }),
-  updateService: (id, data) => request(`/courier-services/${id}`, { method: 'PUT', body: data }),
+  createService: (data) => request('/courier-services', { method: 'POST', body: { serviceId: 0, ...data } }),
+  updateService: (id, data) => request(`/courier-services/${id}`, { method: 'PUT', body: { serviceId: id, ...data } }),
   deleteService: (id) => request(`/courier-services/${id}`, { method: 'DELETE' }),
 
   // Orders
   getOrders: () => request('/orders'),
   getOrder: (id) => request(`/orders/${id}`),
-  createOrder: (data) => request('/orders', { method: 'POST', body: data }),
-  updateOrder: (id, data) => request(`/orders/${id}`, { method: 'PUT', body: data }),
+  createOrder: (data) => request('/orders', { method: 'POST', body: { orderId: 0, ...data } }),
+  updateOrder: (id, data) => request(`/orders/${id}`, { method: 'PUT', body: { orderId: id, ...data } }),
   deleteOrder: (id) => request(`/orders/${id}`, { method: 'DELETE' }),
   searchOrders: (status) => request(`/orders/search?status=${encodeURIComponent(status)}`),
   getOrdersByCustomer: (customerId) => request(`/orders/customer/${customerId}`),
@@ -86,23 +94,23 @@ export const api = {
   // Payments
   getPayments: () => request('/payments'),
   getPayment: (id) => request(`/payments/${id}`),
-  createPayment: (data) => request('/payments', { method: 'POST', body: data }),
-  updatePayment: (id, data) => request(`/payments/${id}`, { method: 'PUT', body: data }),
+  createPayment: (data) => request('/payments', { method: 'POST', body: { paymentId: 0, ...data } }),
+  updatePayment: (id, data) => request(`/payments/${id}`, { method: 'PUT', body: { paymentId: id, ...data } }),
   deletePayment: (id) => request(`/payments/${id}`, { method: 'DELETE' }),
 
   // Parcels
   getParcels: () => request('/parcels'),
   getParcel: (id) => request(`/parcels/${id}`),
-  createParcel: (data) => request('/parcels', { method: 'POST', body: data }),
-  updateParcel: (id, data) => request(`/parcels/${id}`, { method: 'PUT', body: data }),
+  createParcel: (data) => request('/parcels', { method: 'POST', body: { parcelId: 0, ...data } }),
+  updateParcel: (id, data) => request(`/parcels/${id}`, { method: 'PUT', body: { parcelId: id, ...data } }),
   deleteParcel: (id) => request(`/parcels/${id}`, { method: 'DELETE' }),
   getParcelsByOrder: (orderId) => request(`/parcels/order/${orderId}`),
 
   // Tracking Events
   getTrackingEvents: () => request('/tracking-events'),
   getTrackingEvent: (id) => request(`/tracking-events/${id}`),
-  createTrackingEvent: (data) => request('/tracking-events', { method: 'POST', body: data }),
-  updateTrackingEvent: (id, data) => request(`/tracking-events/${id}`, { method: 'PUT', body: data }),
+  createTrackingEvent: (data) => request('/tracking-events', { method: 'POST', body: { eventId: 0, ...data } }),
+  updateTrackingEvent: (id, data) => request(`/tracking-events/${id}`, { method: 'PUT', body: { eventId: id, ...data } }),
   deleteTrackingEvent: (id) => request(`/tracking-events/${id}`, { method: 'DELETE' }),
   getTrackingByParcel: (parcelId) => request(`/tracking-events/parcel/${parcelId}`),
 
@@ -115,8 +123,8 @@ export const api = {
 
   // Delivery Attempts
   getDeliveryAttempts: () => request('/delivery-attempts'),
-  createDeliveryAttempt: (data) => request('/delivery-attempts', { method: 'POST', body: data }),
-  updateDeliveryAttempt: (branchId, attemptNo, data) => request(`/delivery-attempts/${branchId}/${attemptNo}`, { method: 'PUT', body: data }),
+  createDeliveryAttempt: (data) => request('/delivery-attempts', { method: 'POST', body: { attemptNo: 0, ...data } }),
+  updateDeliveryAttempt: (branchId, attemptNo, data) => request(`/delivery-attempts/${branchId}/${attemptNo}`, { method: 'PUT', body: { attemptNo, ...data } }),
   deleteDeliveryAttempt: (branchId, attemptNo) => request(`/delivery-attempts/${branchId}/${attemptNo}`, { method: 'DELETE' }),
 
   // Database Demonstration: SQL Queries

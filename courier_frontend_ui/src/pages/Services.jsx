@@ -4,13 +4,6 @@ import Modal from '../components/Modal';
 import AlertBanner from '../components/AlertBanner';
 import api from '../api';
 
-const DEFAULT_SERVICES = [
-  { serviceId: 301, branchId: 1, courierId: 101, charges: 120.0 },
-  { serviceId: 302, branchId: 1, courierId: 102, charges: 80.0 },
-  { serviceId: 303, branchId: 2, courierId: 103, charges: 50.0 },
-  { serviceId: 304, branchId: 3, courierId: 104, charges: 200.0 },
-];
-
 const columns = [
   { key: 'serviceId', label: 'SERVICE ID' },
   { key: 'branchId', label: 'BRANCH ID' },
@@ -37,10 +30,10 @@ export default function Services() {
     setLoading(true);
     try {
       const data = await api.getServices();
-      setServices(Array.isArray(data) && data.length > 0 ? data : DEFAULT_SERVICES);
+      setServices(Array.isArray(data) ? data : []);
     } catch (err) {
-      setServices(DEFAULT_SERVICES);
-      setAlert({ type: 'warning', message: `${err.message} — Showing local services view.` });
+      setServices([]);
+      setAlert({ type: 'error', message: `Backend/Database unavailable: ${err.message}` });
     } finally {
       setLoading(false);
     }
@@ -70,12 +63,9 @@ export default function Services() {
       await api.createService(formData);
       setAlert({ type: 'success', message: 'Courier service added to Oracle DB.' });
       setIsAddOpen(false);
-      loadServices();
+      await loadServices();
     } catch (err) {
-      const newId = Math.max(...services.map(s => s.serviceId || 0), 300) + 1;
-      setServices([...services, { serviceId: newId, ...formData }]);
-      setAlert({ type: 'info', message: 'Service added (local session preview).' });
-      setIsAddOpen(false);
+      setAlert({ type: 'error', message: `Failed to add service: ${err.message}` });
     }
   };
 
@@ -86,11 +76,9 @@ export default function Services() {
       await api.updateService(editingService.serviceId, formData);
       setAlert({ type: 'success', message: `Service #${editingService.serviceId} updated.` });
       setEditingService(null);
-      loadServices();
+      await loadServices();
     } catch (err) {
-      setServices(services.map(s => s.serviceId === editingService.serviceId ? { ...s, ...formData } : s));
-      setAlert({ type: 'info', message: `Service #${editingService.serviceId} updated (local session preview).` });
-      setEditingService(null);
+      setAlert({ type: 'error', message: `Failed to update service #${editingService.serviceId}: ${err.message}` });
     }
   };
 
@@ -100,10 +88,9 @@ export default function Services() {
       await api.deleteService(deletingService.serviceId);
       setAlert({ type: 'success', message: `Service #${deletingService.serviceId} deleted.` });
       setDeletingService(null);
-      loadServices();
+      await loadServices();
     } catch (err) {
-      setServices(services.filter(s => s.serviceId !== deletingService.serviceId));
-      setAlert({ type: 'info', message: `Service #${deletingService.serviceId} deleted (local session preview).` });
+      setAlert({ type: 'error', message: `Failed to delete service #${deletingService.serviceId}: ${err.message}` });
       setDeletingService(null);
     }
   };

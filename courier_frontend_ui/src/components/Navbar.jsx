@@ -1,4 +1,13 @@
-export default function Navbar({ title, onToggleSidebar, collapsed }) {
+export default function Navbar({
+  title,
+  onToggleSidebar,
+  collapsed,
+  backendConnected,
+  onRefreshConnection,
+}) {
+  const isOffline = backendConnected === false;
+  const isConnecting = backendConnected === null;
+
   return (
     <header className="navbar">
       <button
@@ -30,9 +39,24 @@ export default function Navbar({ title, onToggleSidebar, collapsed }) {
         />
       </div>
 
-      <div className="status" style={{ marginLeft: 'auto' }}>
-        <span className="status-dot"></span>
-        Backend Connected
+      <div
+        className={`status ${isOffline ? 'offline' : ''}`}
+        style={{
+          marginLeft: 'auto',
+          cursor: onRefreshConnection ? 'pointer' : 'default',
+          transition: 'all 0.2s ease',
+        }}
+        onClick={onRefreshConnection}
+        title={
+          isOffline
+            ? 'Backend or Oracle DB is unreachable. Click to retry connection.'
+            : isConnecting
+            ? 'Testing backend connection...'
+            : 'Connected to Spring Boot & Oracle FREEPDB1. Click to refresh status.'
+        }
+      >
+        <span className={`status-dot ${isOffline ? 'offline' : ''}`}></span>
+        {isConnecting ? 'Connecting...' : isOffline ? 'Backend Offline' : 'Backend Connected'}
       </div>
     </header>
   );

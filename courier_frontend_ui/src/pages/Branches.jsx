@@ -4,13 +4,6 @@ import Modal from '../components/Modal';
 import AlertBanner from '../components/AlertBanner';
 import api from '../api';
 
-const DEFAULT_BRANCHES = [
-  { branchId: 1, branchName: 'Chennai Central Hub', street: '10 Mount Road', city: 'Chennai', pin: '600002' },
-  { branchId: 2, branchName: 'Mumbai West Terminal', street: '22 Bandra Link Road', city: 'Mumbai', pin: '400050' },
-  { branchId: 3, branchName: 'Bengaluru North Station', street: '14 Outer Ring Road', city: 'Bengaluru', pin: '560045' },
-  { branchId: 4, branchName: 'Delhi Hub Central', street: '5 Barakhamba Road', city: 'Delhi', pin: '110001' },
-];
-
 const columns = [
   { key: 'branchId', label: 'BRANCH ID' },
   { key: 'branchName', label: 'BRANCH NAME' },
@@ -39,10 +32,10 @@ export default function Branches() {
     setLoading(true);
     try {
       const data = await api.getBranches();
-      setBranches(Array.isArray(data) && data.length > 0 ? data : DEFAULT_BRANCHES);
+      setBranches(Array.isArray(data) ? data : []);
     } catch (err) {
-      setBranches(DEFAULT_BRANCHES);
-      setAlert({ type: 'warning', message: `${err.message} — Showing local branches view.` });
+      setBranches([]);
+      setAlert({ type: 'error', message: `Backend/Database unavailable: ${err.message}` });
     } finally {
       setLoading(false);
     }
@@ -73,12 +66,9 @@ export default function Branches() {
       await api.createBranch(formData);
       setAlert({ type: 'success', message: 'Branch registered successfully in Oracle BRANCH table.' });
       setIsAddOpen(false);
-      loadBranches();
+      await loadBranches();
     } catch (err) {
-      const newId = Math.max(...branches.map(b => b.branchId || 0), 0) + 1;
-      setBranches([...branches, { branchId: newId, ...formData }]);
-      setAlert({ type: 'info', message: 'Branch registered (local session preview).' });
-      setIsAddOpen(false);
+      setAlert({ type: 'error', message: `Failed to add branch: ${err.message}` });
     }
   };
 
@@ -89,11 +79,9 @@ export default function Branches() {
       await api.updateBranch(editingBranch.branchId, formData);
       setAlert({ type: 'success', message: `Branch #${editingBranch.branchId} updated.` });
       setEditingBranch(null);
-      loadBranches();
+      await loadBranches();
     } catch (err) {
-      setBranches(branches.map(b => b.branchId === editingBranch.branchId ? { ...b, ...formData } : b));
-      setAlert({ type: 'info', message: `Branch #${editingBranch.branchId} updated (local session preview).` });
-      setEditingBranch(null);
+      setAlert({ type: 'error', message: `Failed to update branch #${editingBranch.branchId}: ${err.message}` });
     }
   };
 
@@ -103,10 +91,9 @@ export default function Branches() {
       await api.deleteBranch(deletingBranch.branchId);
       setAlert({ type: 'success', message: `Branch #${deletingBranch.branchId} deleted.` });
       setDeletingBranch(null);
-      loadBranches();
+      await loadBranches();
     } catch (err) {
-      setBranches(branches.filter(b => b.branchId !== deletingBranch.branchId));
-      setAlert({ type: 'info', message: `Branch #${deletingBranch.branchId} deleted (local session preview).` });
+      setAlert({ type: 'error', message: `Failed to delete branch #${deletingBranch.branchId}: ${err.message}` });
       setDeletingBranch(null);
     }
   };

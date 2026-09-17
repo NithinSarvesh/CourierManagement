@@ -4,14 +4,6 @@ import Modal from '../components/Modal';
 import AlertBanner from '../components/AlertBanner';
 import api from '../api';
 
-const DEFAULT_ORDERS = [
-  { orderId: 4001, customerId: 1001, serviceId: 301, orderDate: '2026-09-14 10:30', status: 'Delivered', amount: 1250.0 },
-  { orderId: 4002, customerId: 1002, serviceId: 302, orderDate: '2026-09-15 11:15', status: 'In Transit', amount: 780.0 },
-  { orderId: 4003, customerId: 1003, serviceId: 303, orderDate: '2026-09-15 15:45', status: 'Processing', amount: 2100.0 },
-  { orderId: 4004, customerId: 1004, serviceId: 301, orderDate: '2026-09-16 09:20', status: 'Delivered', amount: 560.0 },
-  { orderId: 4005, customerId: 1001, serviceId: 304, orderDate: '2026-09-16 14:00', status: 'Pending', amount: 1800.0 },
-];
-
 const columns = [
   { key: 'orderId', label: 'ORDER ID' },
   { key: 'customerId', label: 'CUSTOMER ID' },
@@ -41,10 +33,10 @@ export default function Orders() {
     setLoading(true);
     try {
       const data = await api.getOrders();
-      setOrders(Array.isArray(data) && data.length > 0 ? data : DEFAULT_ORDERS);
+      setOrders(Array.isArray(data) ? data : []);
     } catch (err) {
-      setOrders(DEFAULT_ORDERS);
-      setAlert({ type: 'warning', message: `${err.message} — Showing local orders view.` });
+      setOrders([]);
+      setAlert({ type: 'error', message: `Backend/Database unavailable: ${err.message}` });
     } finally {
       setLoading(false);
     }
@@ -75,12 +67,9 @@ export default function Orders() {
       await api.createOrder(formData);
       setAlert({ type: 'success', message: 'Order created and persisted in Oracle ORDERS table.' });
       setIsAddOpen(false);
-      loadOrders();
+      await loadOrders();
     } catch (err) {
-      const newId = Math.max(...orders.map(o => o.orderId || 0), 4000) + 1;
-      setOrders([...orders, { orderId: newId, orderDate: new Date().toISOString().replace('T', ' ').substring(0, 16), ...formData }]);
-      setAlert({ type: 'info', message: 'Order created (local session preview).' });
-      setIsAddOpen(false);
+      setAlert({ type: 'error', message: `Failed to create order: ${err.message}` });
     }
   };
 
@@ -91,11 +80,9 @@ export default function Orders() {
       await api.updateOrder(editingOrder.orderId, formData);
       setAlert({ type: 'success', message: `Order #${editingOrder.orderId} updated successfully.` });
       setEditingOrder(null);
-      loadOrders();
+      await loadOrders();
     } catch (err) {
-      setOrders(orders.map(o => o.orderId === editingOrder.orderId ? { ...o, ...formData } : o));
-      setAlert({ type: 'info', message: `Order #${editingOrder.orderId} updated (local session preview).` });
-      setEditingOrder(null);
+      setAlert({ type: 'error', message: `Failed to update order #${editingOrder.orderId}: ${err.message}` });
     }
   };
 
@@ -105,10 +92,9 @@ export default function Orders() {
       await api.deleteOrder(deletingOrder.orderId);
       setAlert({ type: 'success', message: `Order #${deletingOrder.orderId} removed.` });
       setDeletingOrder(null);
-      loadOrders();
+      await loadOrders();
     } catch (err) {
-      setOrders(orders.filter(o => o.orderId !== deletingOrder.orderId));
-      setAlert({ type: 'info', message: `Order #${deletingOrder.orderId} removed (local session preview).` });
+      setAlert({ type: 'error', message: `Failed to delete order #${deletingOrder.orderId}: ${err.message}` });
       setDeletingOrder(null);
     }
   };

@@ -35,7 +35,8 @@ public class GlobalExceptionHandler {
 
     @ExceptionHandler(Exception.class)
     public ResponseEntity<ErrorResponse> handleGeneralError(Exception e) {
+        e.printStackTrace();
         return ResponseEntity.status(HttpStatus.INTERNAL_SERVER_ERROR)
-                .body(new ErrorResponse(500, "Something went wrong"));
+                .body(new ErrorResponse(500, e.getMessage() != null ? e.getMessage() : "Something went wrong"));
     }
 }
