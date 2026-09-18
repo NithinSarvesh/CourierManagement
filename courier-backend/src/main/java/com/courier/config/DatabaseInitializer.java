@@ -21,6 +21,9 @@ public class DatabaseInitializer implements CommandLineRunner {
     private final DataSource dataSource;
     private final JdbcTemplate jdbcTemplate;
 
+    @org.springframework.beans.factory.annotation.Value("${app.database.auto-init:true}")
+    private boolean autoInitEnabled;
+
     public DatabaseInitializer(DataSource dataSource, JdbcTemplate jdbcTemplate) {
         this.dataSource = dataSource;
         this.jdbcTemplate = jdbcTemplate;
@@ -35,14 +38,18 @@ public class DatabaseInitializer implements CommandLineRunner {
                 "SELECT COUNT(*) FROM user_tables WHERE table_name = 'CUSTOMER'", Integer.class);
 
             if (tableCount == null || tableCount == 0) {
-                logger.info("CUSTOMER table not found. Auto-initializing Oracle schema, procedures, and seed data...");
-                executeScript(conn, "schema.sql");
-                executeScript(conn, "plsql_procedures.sql");
-                executeScript(conn, "data.sql");
-                logger.info("Oracle database schema initialization completed successfully!");
+                if (autoInitEnabled) {
+                    logger.info("CUSTOMER table not found. Auto-initializing Oracle schema, procedures, and seed data...");
+                    executeScript(conn, "schema.sql");
+                    executeScript(conn, "plsql_procedures.sql");
+                    executeScript(conn, "data.sql");
+                    logger.info("Oracle database schema initialization completed successfully!");
+                } else {
+                    logger.info("CUSTOMER table not found, but app.database.auto-init is false. Skipping script execution.");
+                }
             } else {
                 Integer totalTables = jdbcTemplate.queryForObject("SELECT COUNT(*) FROM user_tables", Integer.class);
-                logger.info("Oracle schema already initialized with {} tables in COURIER_APP.", totalTables);
+                logger.info("Oracle schema already initialized with {} tables in COURIER_APP. Preserving existing data intact.", totalTables);
             }
         } catch (Exception e) {
             logger.warn("Database initialization check: {}. Will use available schema/fallbacks.", e.getMessage());

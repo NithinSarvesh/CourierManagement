@@ -989,6 +989,182 @@ PlsqlOperations.jsx
 
 PL/SQL interface
 
+---
+
+## ☁️ AWS EC2 Production Deployment & Operations Guide
+
+This section covers the end-to-end cloud production deployment on AWS EC2 with **persistent, automated boot sequencing**, safe **STOP/START cycles**, and zero data loss.
+
+### 🏛️ Production Architecture
+
+```
+[ Internet / Browser ]
+         │
+         ├──> Option A: Vercel Frontend (https://courier-management-six.vercel.app)
+         └──> Option B: EC2 Direct HTTPS (https://13-207-165-230.sslip.io)
+                    │
+                    ▼ (Port 443 / HTTPS - TLS Managed by Let's Encrypt)
+         [ Caddy / Nginx Reverse Proxy on EC2 ]
+                    │
+                    ▼ (Internal localhost:8081)
+         [ Spring Boot Backend: courier-backend.service ]
+                    │
+                    ▼ (Internal 127.0.0.1:1521 - NEVER exposed publicly)
+         [ Oracle AI Database 26ai Free: courier-oracle Docker Container ]
+                    └──> FREEPDB1 (READ WRITE) ──> Schema: COURIER_APP (20 Tables)
+```
+
+### 🚀 Boot & Startup Sequence
+
+When you **START** the EC2 instance, the following automated sequence executes:
+1. **Linux OS boots** $\rightarrow$ `docker.service` and `caddy.service` start automatically.
+2. **Docker auto-starts `courier-oracle`** container via policy `unless-stopped`.
+3. **`courier-backend.service` triggers `ExecStartPre`**:
+   - Runs `scripts/wait-for-oracle.sh`.
+   - Polls Docker container and port 1521 until Oracle is ready.
+   - Verifies that `FREEPDB1` is in `READ WRITE` mode.
+   - Executes a test query (`SELECT 1 FROM dual;`).
+4. **Spring Boot launches**:
+   - Connects to `127.0.0.1:1521/FREEPDB1` on the first attempt with 0 errors.
+   - `DatabaseInitializer` verifies `CUSTOMER` table exists and preserves all 20 tables intact.
+5. **Caddy serves the frontend & proxies API**:
+   - Web application is immediately live and ready to use!
+
+---
+
+### 📋 1. One-Time EC2 Setup
+
+If setting up on a fresh Amazon Linux 2023 instance:
+
+```bash
+# 1. Clone repository
+git clone -b online-demo https://github.com/NithinSarvesh/CourierManagement.git
+cd ~/CourierManagement
+
+# 2. Run automated setup script
+chmod +x scripts/*.sh
+./scripts/setup-ec2.sh
+
+# 3. Configure production credentials
+# Edit /etc/courier-backend.env and enter your cloud COURIER_APP password:
+sudo nano /etc/courier-backend.env
+sudo chmod 600 /etc/courier-backend.env
+
+# 4. Save PDB state in Oracle (so FREEPDB1 auto-opens READ WRITE on boot)
+docker exec courier-oracle sqlplus -s / as sysdba << 'EOF'
+ALTER PLUGGABLE DATABASE FREEPDB1 OPEN READ WRITE;
+ALTER PLUGGABLE DATABASE FREEPDB1 SAVE STATE;
+EXIT;
+EOF
+
+# 5. Build and launch backend & frontend
+./scripts/deploy-backend.sh
+./scripts/deploy-frontend.sh
+
+# 6. Verify everything is green
+./scripts/verify-deployment.sh
+```
+
+---
+
+### 🛡️ 2. AWS Security Group Rules
+
+Configure the following inbound rules in your **AWS EC2 Security Group**:
+
+| Protocol | Port | Source | Purpose |
+| :--- | :--- | :--- | :--- |
+| **SSH** | `22` | `My IP` / EC2 Instance Connect | Server administration |
+| **HTTP** | `80` | `0.0.0.0/0` | Let's Encrypt validation & HTTPS redirect |
+| **HTTPS** | `443` | `0.0.0.0/0` | Secure public web access & API traffic |
+| **Oracle** | `1521` | **DO NOT OPEN** | Private to `127.0.0.1` inside EC2 |
+| **Spring Boot** | `8081` | **DO NOT OPEN** | Proxied internally by Caddy / Nginx |
+
+---
+
+### 🔄 3. Everyday Operations (Cost-Saving Workflow)
+
+#### How to START the Project:
+1. Open **AWS Management Console** $\rightarrow$ **EC2** $\rightarrow$ **Instances**.
+2. Select your instance $\rightarrow$ **Instance state** $\rightarrow$ **Start instance**.
+3. Wait ~60 seconds for EC2, Oracle, and Spring Boot to complete the boot sequence.
+4. (Optional) Run verification via SSH or EC2 Instance Connect:
+   ```bash
+   ~/CourierManagement/scripts/verify-deployment.sh
+   ```
+5. Open your application in the browser:
+   - **Direct EC2 URL**: `https://13-207-165-230.sslip.io`
+   - **Vercel URL**: `https://courier-management-six.vercel.app`
+
+#### How to STOP the Project (No Data Loss):
+1. When finished using the project, open **AWS EC2 Console**.
+2. Select your instance $\rightarrow$ **Instance state** $\rightarrow$ **Stop instance**.
+3. **Safety Guarantee**:
+   - `systemd` sends clean shutdown signals to Spring Boot and Docker.
+   - Oracle executes a clean database checkpoint and dismounts `FREEPDB1`.
+   - Your EBS storage preserves all database rows, schema objects, and configuration.
+   - Your Elastic IP (`13.207.165.230`) remains attached and will not change when restarted.
+
+---
+
+### 🛠️ 4. Code & Deployment Updates
+
+#### Update Backend:
+```bash
+cd ~/CourierManagement
+./scripts/deploy-backend.sh
+```
+*(Automatically pulls latest code, rebuilds the JAR, restarts `courier-backend.service`, and checks status).*
+
+#### Update Frontend:
+```bash
+cd ~/CourierManagement
+./scripts/deploy-frontend.sh
+```
+*(Builds the React production bundle and updates `/var/www/courier-management`).*
+
+---
+
+### 🩺 5. Monitoring & Troubleshooting Playbook
+
+#### Check Complete Stack Health:
+```bash
+~/CourierManagement/scripts/verify-deployment.sh
+```
+
+#### Diagnostic Commands:
+```bash
+# Check Oracle container, listener, and PDB
+~/CourierManagement/scripts/check-oracle.sh
+
+# View Spring Boot live logs
+sudo journalctl -u courier-backend -f
+
+# View Caddy web server logs
+sudo journalctl -u caddy -f
+
+# Check Spring Boot service status
+sudo systemctl status courier-backend --no-pager
+
+# Test local API endpoints
+curl -s http://127.0.0.1:8081/actuator/health
+curl -s http://127.0.0.1:8081/api/dashboard/stats
+```
+
+#### Common Issues & Fixes:
+* **FREEPDB1 stuck in MOUNTED state?**
+  ```bash
+  docker exec -it courier-oracle sqlplus / as sysdba
+  ALTER PLUGGABLE DATABASE FREEPDB1 OPEN READ WRITE;
+  ALTER PLUGGABLE DATABASE FREEPDB1 SAVE STATE;
+  EXIT;
+  ```
+* **Spring Boot failed to connect on boot?**
+  Check `/var/log/messages` or `sudo journalctl -u courier-backend -n 50`. The `wait-for-oracle.sh` script automatically retries for up to 120 seconds.
+* **HTTPS certificate expired or failing?**
+  Verify that ports 80 and 443 are open in the AWS Security Group. Caddy automatically renews certificates via ACME HTTP-01 challenge on port 80.
+
+---
+
 🏁 Conclusion
 
 CourierX transforms a real-world courier workflow into a structured relational database and a full-stack application.

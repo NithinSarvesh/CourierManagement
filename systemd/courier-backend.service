@@ -1,0 +1,31 @@
+[Unit]
+Description=Courier Management Spring Boot Backend
+After=network.target docker.service caddy.service
+Requires=docker.service
+
+[Service]
+Type=simple
+User=ec2-user
+Group=ec2-user
+WorkingDirectory=/home/ec2-user/CourierManagement/courier-backend
+EnvironmentFile=/etc/courier-backend.env
+
+# Block and wait until Oracle container is running, listener is up, and FREEPDB1 is OPEN READ WRITE
+ExecStartPre=/bin/bash /home/ec2-user/CourierManagement/scripts/wait-for-oracle.sh
+
+# Launch Spring Boot with memory limits suited for t4g.small (2 GiB RAM)
+ExecStart=/usr/bin/java -Xms256m -Xmx768m -jar /home/ec2-user/CourierManagement/courier-backend/target/courier-backend-0.0.1-SNAPSHOT.jar
+
+# Auto-recovery and restart on failure
+Restart=always
+RestartSec=10
+TimeoutStartSec=180
+SuccessExitStatus=143
+
+# Structured logging to systemd journal
+StandardOutput=journal
+StandardError=journal
+SyslogIdentifier=courier-backend
+
+[Install]
+WantedBy=multi-user.target

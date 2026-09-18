@@ -1,0 +1,32 @@
+# ==============================================================================
+# Caddyfile - Production Caddy Web Server Configuration
+# ==============================================================================
+# - Automated Let's Encrypt TLS on port 443
+# - Static hosting for React Single Page Application
+# - Reverse proxy for Spring Boot API (/api/*) to localhost:8081
+# ==============================================================================
+
+13-207-165-230.sslip.io {
+    # Proxy all backend API calls to Spring Boot
+    handle /api/* {
+        reverse_proxy localhost:8081 {
+            header_up Host {host}
+            header_up X-Real-IP {remote_host}
+            header_up X-Forwarded-For {remote_host}
+            header_up X-Forwarded-Proto {scheme}
+        }
+    }
+
+    # Proxy Spring Boot Actuator health checks
+    handle /actuator/* {
+        reverse_proxy localhost:8081
+    }
+
+    # Serve built React frontend with SPA routing
+    handle {
+        root * /var/www/courier-management
+        encode gzip zstd
+        file_server
+        try_files {path} /index.html
+    }
+}
