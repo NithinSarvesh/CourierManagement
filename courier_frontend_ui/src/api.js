@@ -1,14 +1,8 @@
 const API_BASE =
   import.meta.env.VITE_API_BASE ||
-  (import.meta.env.DEV ? 'http://localhost:8081/api' : '');
+  (import.meta.env.DEV ? 'http://localhost:8081/api' : 'https://13-207-165-230.sslip.io/api');
 
 async function request(endpoint, options = {}) {
-  if (!API_BASE) {
-    throw new Error(
-      'Configuration Error: VITE_API_BASE is not configured. In production, please set VITE_API_BASE to your backend API URL.'
-    );
-  }
-
   const url = `${API_BASE}${endpoint}`;
   const config = {
     headers: {
