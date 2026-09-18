@@ -6,7 +6,7 @@
 # - Reverse proxy for Spring Boot API (/api/*) to localhost:8081
 # ==============================================================================
 
-13-207-165-230.sslip.io {
+13-126-121-252.sslip.io {
     # Proxy all backend API calls to Spring Boot
     handle /api/* {
         reverse_proxy localhost:8081 {

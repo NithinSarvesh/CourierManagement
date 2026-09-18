@@ -1001,7 +1001,7 @@ This section covers the end-to-end cloud production deployment on AWS EC2 with *
 [ Internet / Browser ]
          │
          ├──> Option A: Vercel Frontend (https://courier-management-six.vercel.app)
-         └──> Option B: EC2 Direct HTTPS (https://13-207-165-230.sslip.io)
+         └──> Option B: EC2 Direct HTTPS (https://13-126-121-252.sslip.io)
                     │
                     ▼ (Port 443 / HTTPS - TLS Managed by Let's Encrypt)
          [ Caddy / Nginx Reverse Proxy on EC2 ]
@@ -1092,7 +1092,7 @@ Configure the following inbound rules in your **AWS EC2 Security Group**:
    ~/CourierManagement/scripts/verify-deployment.sh
    ```
 5. Open your application in the browser:
-   - **Direct EC2 URL**: `https://13-207-165-230.sslip.io`
+   - **Direct EC2 URL**: `https://13-126-121-252.sslip.io`
    - **Vercel URL**: `https://courier-management-six.vercel.app`
 
 #### How to STOP the Project (No Data Loss):
@@ -1102,7 +1102,7 @@ Configure the following inbound rules in your **AWS EC2 Security Group**:
    - `systemd` sends clean shutdown signals to Spring Boot and Docker.
    - Oracle executes a clean database checkpoint and dismounts `FREEPDB1`.
    - Your EBS storage preserves all database rows, schema objects, and configuration.
-   - Your Elastic IP (`13.207.165.230`) remains attached and will not change when restarted.
+   - Your Elastic IP (`13.126.121.252`) remains attached and will not change when restarted.
 
 ---
 

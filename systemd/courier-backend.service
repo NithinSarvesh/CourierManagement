@@ -1,6 +1,6 @@
 [Unit]
 Description=Courier Management Spring Boot Backend
-After=network.target docker.service caddy.service
+After=network.target docker.service
 Requires=docker.service
 
 [Service]
@@ -14,7 +14,7 @@ EnvironmentFile=/etc/courier-backend.env
 ExecStartPre=/bin/bash /home/ec2-user/CourierManagement/scripts/wait-for-oracle.sh
 
 # Launch Spring Boot with memory limits suited for t4g.small (2 GiB RAM)
-ExecStart=/usr/bin/java -Xms256m -Xmx768m -jar /home/ec2-user/CourierManagement/courier-backend/target/courier-backend-0.0.1-SNAPSHOT.jar
+ExecStart=/usr/bin/java -Xms128m -Xmx384m -jar /home/ec2-user/CourierManagement/courier-backend/target/courier-backend-0.0.1-SNAPSHOT.jar
 
 # Auto-recovery and restart on failure
 Restart=always

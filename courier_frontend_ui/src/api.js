@@ -4,7 +4,7 @@ const API_BASE =
     ? 'http://localhost:8081/api'
     : (typeof window !== 'undefined' && (window.location.hostname === 'localhost' || window.location.hostname === '127.0.0.1' || window.location.hostname.endsWith('.sslip.io'))
         ? '/api'
-        : 'https://13-207-165-230.sslip.io/api'));
+        : 'https://13-126-121-252.sslip.io/api'));
 
 async function request(endpoint, options = {}) {
   const url = `${API_BASE}${endpoint}`;

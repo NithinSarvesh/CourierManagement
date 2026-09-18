@@ -111,7 +111,7 @@ fi
 
 # 9. Public HTTPS Endpoint
 echo -n "Checking Public HTTPS endpoint... "
-https_resp=$(curl -s -m 5 -k https://13-207-165-230.sslip.io/api/dashboard/stats 2>/dev/null || true)
+https_resp=$(curl -s -m 5 -k https://13-126-121-252.sslip.io/api/dashboard/stats 2>/dev/null || true)
 if echo "${https_resp}" | grep -q '"connected":true'; then
     echo -e "${GREEN}[OK] Public HTTPS Endpoint Healthy${NC}"
 else

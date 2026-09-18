@@ -66,10 +66,9 @@ EOF
         echo "[$(date '+%Y-%m-%d %H:%M:%S')] [OK] ${PDB_NAME} is OPEN READ WRITE."
         break
     elif [ "${pdb_status}" = "MOUNTED" ]; then
-        echo "[$(date '+%Y-%m-%d %H:%M:%S')] ${PDB_NAME} is MOUNTED. Opening READ WRITE and saving state..."
+        echo "[$(date '+%Y-%m-%d %H:%M:%S')] ${PDB_NAME} is MOUNTED. Opening READ WRITE (one-time fallback)..."
         docker exec "${CONTAINER_NAME}" sqlplus -s / as sysdba << 'EOF' 2>/dev/null || true
-ALTER PLUGGABLE DATABASE FREEPDB1 OPEN READ WRITE;
-ALTER PLUGGABLE DATABASE FREEPDB1 SAVE STATE;
+ALTER PLUGGABLE DATABASE FREEPDB1 OPEN;
 EXIT;
 EOF
         sleep 2
@@ -86,15 +85,36 @@ if [ $attempt -ge $MAX_ATTEMPTS ]; then
     exit 1
 fi
 
-# 5. Final query execution check inside FREEPDB1
+# 5. Non-privileged query execution check inside FREEPDB1
 echo "[$(date '+%Y-%m-%d %H:%M:%S')] Testing SQL execution in ${PDB_NAME}..."
-test_query=$(docker exec "${CONTAINER_NAME}" sqlplus -s / as sysdba << 'EOF' 2>/dev/null || true
+ENV_FILE="/etc/courier-backend.env"
+test_query=""
+
+if [ -f "${ENV_FILE}" ]; then
+    DB_USER=$(grep -E '^SPRING_DATASOURCE_USERNAME=' "${ENV_FILE}" | cut -d '=' -f2- | tr -d ' "' || echo "COURIER_APP")
+    DB_PASS=$(grep -E '^SPRING_DATASOURCE_PASSWORD=' "${ENV_FILE}" | cut -d '=' -f2- | tr -d ' "' || true)
+fi
+
+if [ -n "${DB_USER}" ] && [ -n "${DB_PASS}" ]; then
+    echo "[$(date '+%Y-%m-%d %H:%M:%S')] Testing connection with application user '${DB_USER}'..."
+    test_query=$(docker exec -i "${CONTAINER_NAME}" sqlplus -s /nolog << EOF 2>/dev/null || true
+CONNECT ${DB_USER}/${DB_PASS}@//localhost:1521/FREEPDB1
+SET HEADING OFF FEEDBACK OFF
+SELECT 1 FROM dual;
+EXIT;
+EOF
+)
+else
+    echo "[$(date '+%Y-%m-%d %H:%M:%S')] Testing connection via local container session..."
+    test_query=$(docker exec "${CONTAINER_NAME}" sqlplus -s / as sysdba << 'EOF' 2>/dev/null || true
 SET HEADING OFF FEEDBACK OFF
 ALTER SESSION SET CONTAINER = FREEPDB1;
 SELECT 1 FROM dual;
 EXIT;
 EOF
 )
+fi
+
 test_query=$(echo "${test_query}" | tr -d '[:space:]')
 
 if [ "${test_query}" = "1" ]; then
