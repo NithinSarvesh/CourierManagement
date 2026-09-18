@@ -17,7 +17,8 @@ public class CorsConfig implements WebMvcConfigurer {
     private static final List<String> ALLOWED_ORIGIN_PATTERNS = Arrays.asList(
             "http://localhost:*",
             "http://127.0.0.1:*",
-            "https://*.trycloudflare.com"
+            "https://*.trycloudflare.com",
+            "https://*.vercel.app"
     );
 
     @Override
