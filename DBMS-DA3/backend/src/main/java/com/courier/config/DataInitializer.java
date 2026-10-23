@@ -73,6 +73,8 @@ public class DataInitializer implements CommandLineRunner {
         return lower.contains("databases.neo4j.io")
                 || lower.startsWith("neo4j+s://")
                 || lower.startsWith("bolt+s://")
+                || System.getenv("KOYEB_SERVICE_NAME") != null
+                || System.getenv("KOYEB_APP_NAME") != null
                 || System.getenv("RENDER") != null;
     }
 

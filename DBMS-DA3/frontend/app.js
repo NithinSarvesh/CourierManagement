@@ -6,6 +6,17 @@ const $ = s => document.querySelector(s);
 const $$ = s => [...document.querySelectorAll(s)];
 
 // Central API Base configuration (Configured via config.js, localStorage, or fallback to localhost:8082)
+const isProductionOrigin = () => {
+  if (typeof window === 'undefined' || !window.location) return false;
+  const host = window.location.hostname;
+  return host !== 'localhost' && host !== '127.0.0.1' && host !== '::1' && host !== '';
+};
+
+const isLocalEndpoint = (url) => {
+  if (!url) return false;
+  return url.includes('localhost') || url.includes('127.0.0.1') || url.includes('::1');
+};
+
 const resolveApiBase = () => {
   const runtimeConfig = (typeof window !== 'undefined' && window.SWIFTSHIP_CONFIG && window.SWIFTSHIP_CONFIG.apiBase) || '';
   if (runtimeConfig.trim()) {
@@ -55,6 +66,12 @@ function toast(msg) {
 // Centralized API Client
 // ------------------------------------------------------------------------------
 async function api(path, method = 'GET', data = null) {
+  if (isProductionOrigin() && isLocalEndpoint(API_BASE)) {
+    updateConnStatus(false, 'Setup API (Click ⚙)');
+    renderConfigNotice();
+    throw new Error(`SwiftShip is published on Netlify (${window.location.hostname}), but the production Koyeb backend URL has not been configured yet. Click ⚙ in the sidebar to configure your Koyeb HTTPS URL.`);
+  }
+
   const url = `${API_BASE}${path}`;
   const options = {
     method,
@@ -72,7 +89,7 @@ async function api(path, method = 'GET', data = null) {
     res = await fetch(url, options);
   } catch (netErr) {
     updateConnStatus(false);
-    throw new Error(`Unable to connect to backend at ${API_BASE}. Please ensure the Spring Boot service is running and CORS is configured.`);
+    throw new Error(`Unable to connect to backend at ${API_BASE}. Please ensure the Koyeb Spring Boot service is running and CORS is configured.`);
   }
 
   updateConnStatus(true);
@@ -100,10 +117,15 @@ async function api(path, method = 'GET', data = null) {
 }
 
 // Update connection status in sidebar
-function updateConnStatus(isOnline) {
+function updateConnStatus(isOnline, customText) {
   const dot = $('#connDot');
   const txt = $('#connStatus');
   if (!dot || !txt) return;
+  if (customText) {
+    dot.className = 'dot checking';
+    txt.textContent = customText;
+    return;
+  }
   if (isOnline) {
     dot.className = 'dot online';
     txt.textContent = 'Connected';
@@ -113,8 +135,31 @@ function updateConnStatus(isOnline) {
   }
 }
 
+// Render friendly banner when published without production API configured
+function renderConfigNotice() {
+  const content = $('#content');
+  if (!content || $('#unconfiguredBanner')) return;
+  const banner = document.createElement('div');
+  banner.id = 'unconfiguredBanner';
+  banner.style.cssText = 'background:#fffbeb;border:1px solid #f59e0b;color:#92400e;padding:16px 20px;border-radius:8px;margin-bottom:20px;display:flex;align-items:center;justify-content:space-between;gap:16px;box-shadow:0 1px 3px rgba(0,0,0,0.05);';
+  banner.innerHTML = `
+    <div>
+      <strong style="display:block;font-size:14px;margin-bottom:4px;">⚠️ Action Required: Koyeb Backend URL Not Configured</strong>
+      <span style="font-size:12px;">SwiftShip is deployed on Netlify (<code>${window.location.hostname}</code>), but the backend URL is still pointing to localhost. Configure your Koyeb HTTPS URL in <code>config.js</code> or click Configure below.</span>
+    </div>
+    <button type="button" class="btn primary" id="btnConfigureApiBanner" style="white-space:nowrap;padding:8px 16px;background:#d97706;border:none;color:#fff;border-radius:6px;cursor:pointer;font-weight:600;">⚙ Configure URL</button>
+  `;
+  content.prepend(banner);
+  banner.querySelector('#btnConfigureApiBanner')?.addEventListener('click', promptBackendUrl);
+}
+
 // Check backend health periodically
 async function checkBackendHealth() {
+  if (isProductionOrigin() && isLocalEndpoint(API_BASE)) {
+    updateConnStatus(false, 'Setup API (Click ⚙)');
+    renderConfigNotice();
+    return false;
+  }
   try {
     const res = await fetch(`${API_BASE}/actuator/health`, { headers: { 'Accept': 'application/json' } });
     if (res.ok) {
@@ -1959,20 +2004,28 @@ $('#globalSearch')?.addEventListener('keydown', e => {
   }
 });
 
-$('#connWorkspace')?.addEventListener('click', () => {
+function promptBackendUrl() {
   const current = localStorage.getItem('SWIFTSHIP_API_BASE') || API_BASE;
-  const next = prompt('SwiftShip Backend API Base URL (leave empty to reset to default):', current);
+  const next = prompt('SwiftShip Koyeb Backend API URL (e.g. https://swiftship-backend.koyeb.app):\nLeave empty to reset to default.', current);
   if (next !== null) {
-    const trimmed = next.trim().replace(/\/+$/, '');
-    if (trimmed && trimmed !== current) {
+    let trimmed = next.trim().replace(/\/+$/, '');
+    if (trimmed) {
+      if (typeof window !== 'undefined' && window.location && window.location.protocol === 'https:' && trimmed.startsWith('http://')) {
+        const upgrade = confirm('You are browsing on HTTPS (Netlify). Browsers block unencrypted HTTP API calls (Mixed Content).\n\nDo you want to use HTTPS instead:\n' + trimmed.replace(/^http:\/\//, 'https://') + ' ?');
+        if (upgrade) {
+          trimmed = trimmed.replace(/^http:\/\//, 'https://');
+        }
+      }
       localStorage.setItem('SWIFTSHIP_API_BASE', trimmed);
       location.reload();
-    } else if (!trimmed && localStorage.getItem('SWIFTSHIP_API_BASE')) {
+    } else if (localStorage.getItem('SWIFTSHIP_API_BASE')) {
       localStorage.removeItem('SWIFTSHIP_API_BASE');
       location.reload();
     }
   }
-});
+}
+
+$('#connWorkspace')?.addEventListener('click', promptBackendUrl);
 
 // Initial boot
 (async function init() {

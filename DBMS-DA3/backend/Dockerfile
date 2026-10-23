@@ -1,6 +1,6 @@
 # ==============================================================================
 # SwiftShip Courier Management System - Backend Production Dockerfile
-# Multi-stage build with Eclipse Temurin JDK 21 (builder) and JRE 21 (runtime)
+# Optimized for Koyeb / Container Platforms (Java 21, Spring Boot 3.3.5)
 # ==============================================================================
 
 # Stage 1: Build application JAR using Maven Wrapper
@@ -40,14 +40,22 @@ RUN chown -R courier:courier /app
 
 USER courier
 
-# Default port configuration (Render overrides with dynamic $PORT, local runs default to 8082)
-ENV PORT=8082
+# Port configuration:
+# Koyeb exposes port 8080 and passes $PORT dynamically to the container.
+# Local runs outside container default to 8082 via application.properties.
+ENV PORT=8080
 ENV SERVER_PORT=8082
-EXPOSE 8082
+EXPOSE 8080
 
 # Container Healthcheck targeting Spring Boot Actuator
 HEALTHCHECK --interval=30s --timeout=5s --start-period=60s --retries=3 \
-  CMD curl -f http://127.0.0.1:${PORT:-8082}/actuator/health || exit 1
+  CMD curl -f http://127.0.0.1:${PORT:-8080}/actuator/health || exit 1
 
-# Start Spring Boot application with container-aware memory allocation
-ENTRYPOINT ["sh", "-c", "java -XX:+UseContainerSupport -XX:MaxRAMPercentage=75.0 -Djava.security.egd=file:/dev/./urandom -jar app.jar"]
+# Tuned JVM flags for memory-constrained instances (512 MB RAM on Koyeb Free / Eco):
+# 1. Serial GC saves ~40-60 MB native memory overhead compared to G1GC.
+# 2. MaxRAMPercentage=55.0 caps max heap at ~280 MB, leaving plenty of off-heap room.
+# 3. MaxMetaspaceSize=128m prevents unbounded metaspace growth.
+# 4. ExitOnOutOfMemoryError ensures immediate failover and clean restart.
+ENV JAVA_OPTS="-XX:+UseContainerSupport -XX:MaxRAMPercentage=55.0 -XX:InitialRAMPercentage=25.0 -XX:+UseSerialGC -XX:MaxMetaspaceSize=128m -XX:+ExitOnOutOfMemoryError -Djava.security.egd=file:/dev/./urandom"
+
+ENTRYPOINT ["sh", "-c", "java $JAVA_OPTS -jar app.jar"]

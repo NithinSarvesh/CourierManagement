@@ -4,12 +4,12 @@
  * For local development:
  *   Leave apiBase as '' (defaults automatically to 'http://localhost:8082').
  *
- * For Render production:
- *   Set apiBase to your deployed Render backend web service URL.
+ * For Koyeb + Netlify production:
+ *   Set apiBase to your deployed Koyeb backend public HTTPS URL.
  *   Example:
- *     apiBase: 'https://swiftship-backend.onrender.com'
+ *     apiBase: 'https://swiftship-backend-<your-org>.koyeb.app'
  */
 window.SWIFTSHIP_CONFIG = {
-  // Deployed Render backend URL (leave empty for local development):
+  // Deployed Koyeb backend URL (leave empty for local development):
   apiBase: ''
 };
