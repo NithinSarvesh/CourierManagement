@@ -5,8 +5,23 @@
 const $ = s => document.querySelector(s);
 const $$ = s => [...document.querySelectorAll(s)];
 
-// Central API Base configuration (Default: Neo4j Spring Boot on port 8082)
-const API_BASE = window.__API_BASE__ || localStorage.getItem('SWIFTSHIP_API_BASE') || 'http://localhost:8082';
+// Central API Base configuration (Configured via config.js, localStorage, or fallback to localhost:8082)
+const resolveApiBase = () => {
+  const runtimeConfig = (typeof window !== 'undefined' && window.SWIFTSHIP_CONFIG && window.SWIFTSHIP_CONFIG.apiBase) || '';
+  if (runtimeConfig.trim()) {
+    return runtimeConfig.trim().replace(/\/+$/, '');
+  }
+  const localStorageBase = (typeof localStorage !== 'undefined' && localStorage.getItem('SWIFTSHIP_API_BASE')) || '';
+  if (localStorageBase.trim()) {
+    return localStorageBase.trim().replace(/\/+$/, '');
+  }
+  const globalBase = (typeof window !== 'undefined' && window.__API_BASE__) || '';
+  if (globalBase.trim()) {
+    return globalBase.trim().replace(/\/+$/, '');
+  }
+  return 'http://localhost:8082';
+};
+const API_BASE = resolveApiBase();
 
 // Status badge CSS classes
 function statusClass(s) {
@@ -57,7 +72,7 @@ async function api(path, method = 'GET', data = null) {
     res = await fetch(url, options);
   } catch (netErr) {
     updateConnStatus(false);
-    throw new Error(`Unable to connect to backend at ${API_BASE}. Please ensure Spring Boot is running on port 8082.`);
+    throw new Error(`Unable to connect to backend at ${API_BASE}. Please ensure the Spring Boot service is running and CORS is configured.`);
   }
 
   updateConnStatus(true);
@@ -91,10 +106,10 @@ function updateConnStatus(isOnline) {
   if (!dot || !txt) return;
   if (isOnline) {
     dot.className = 'dot online';
-    txt.textContent = 'Connected (8082)';
+    txt.textContent = 'Connected';
   } else {
     dot.className = 'dot offline';
-    txt.textContent = 'Offline (8082)';
+    txt.textContent = 'Offline';
   }
 }
 
@@ -1946,10 +1961,16 @@ $('#globalSearch')?.addEventListener('keydown', e => {
 
 $('#connWorkspace')?.addEventListener('click', () => {
   const current = localStorage.getItem('SWIFTSHIP_API_BASE') || API_BASE;
-  const next = prompt('SwiftShip Backend API Base URL:', current);
-  if (next && next.trim() && next.trim() !== current) {
-    localStorage.setItem('SWIFTSHIP_API_BASE', next.trim());
-    location.reload();
+  const next = prompt('SwiftShip Backend API Base URL (leave empty to reset to default):', current);
+  if (next !== null) {
+    const trimmed = next.trim().replace(/\/+$/, '');
+    if (trimmed && trimmed !== current) {
+      localStorage.setItem('SWIFTSHIP_API_BASE', trimmed);
+      location.reload();
+    } else if (!trimmed && localStorage.getItem('SWIFTSHIP_API_BASE')) {
+      localStorage.removeItem('SWIFTSHIP_API_BASE');
+      location.reload();
+    }
   }
 });
 
