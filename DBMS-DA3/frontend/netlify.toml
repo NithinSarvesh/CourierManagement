@@ -4,11 +4,11 @@
 
 [build]
   publish = "."
-  functions = "../netlify/functions"
-  command = "npm --prefix .. install"
+  functions = "netlify/functions"
+  command = "npm install"
 
 [functions]
-  directory = "../netlify/functions"
+  directory = "netlify/functions"
   node_bundler = "esbuild"
 
 # Route REST API requests directly to the Netlify Serverless Function

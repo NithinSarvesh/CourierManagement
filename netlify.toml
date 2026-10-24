@@ -6,7 +6,7 @@
 [build]
   publish = "DBMS-DA3/frontend"
   functions = "DBMS-DA3/netlify/functions"
-  command = "npm --prefix DBMS-DA3 install"
+  command = "cd DBMS-DA3 && npm install && cd frontend && npm install"
 
 [functions]
   directory = "DBMS-DA3/netlify/functions"

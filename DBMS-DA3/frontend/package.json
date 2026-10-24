@@ -1,0 +1,9 @@
+{
+  "name": "swiftship-courier-frontend-package",
+  "version": "1.0.0",
+  "description": "SwiftShip Courier Management System - Netlify Functions & Neo4j AuraDB",
+  "type": "module",
+  "dependencies": {
+    "neo4j-driver": "^5.28.1"
+  }
+}
