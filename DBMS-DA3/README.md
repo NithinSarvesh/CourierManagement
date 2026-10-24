@@ -4,26 +4,38 @@ This folder contains the complete **DBMS DA3** implementation of the SwiftShip C
 
 > **Architecture Note & Relationship to DA2:**  
 > - **DA2** is an **Oracle Relational Database (RDBMS)** system utilizing Oracle 26ai Free, EER relational schemas (20 tables), PL/SQL procedures, and AWS EC2 deployment. All DA2 code, scripts, and Oracle configurations remain completely intact in the repository root.  
-> - **DA3** is a **NoSQL Graph Database** system built on **Neo4j 5.x**, Cypher graph traversals, and Spring Data Neo4j. It models courier logistics as an interconnected property graph (customers, parcels, hubs, agents, routes, tracking milestones, and vehicles).
+> - **DA3** is a **NoSQL Graph Database** system built on **Neo4j 5.x**, Cypher graph traversals, and property graphs. It models courier logistics as an interconnected graph (customers, parcels, hubs, agents, routes, tracking milestones, payments, and vehicles).
 
 ---
 
 ## 🏛️ System Architecture
 
+### Production Deployment (Netlify Free + Neo4j AuraDB Free)
+For 100% free cloud deployment, the application runs entirely on Netlify using Netlify Functions for the serverless API backend, connected to Neo4j AuraDB Free:
+
 ```
 [ Web Browser Frontend ]
    (HTML5, CSS3, Vanilla JS SPA in DBMS-DA3/frontend)
          │
-         │ REST API (JSON) over HTTP
+         │ Same-origin REST API (/api/* & /actuator/health)
          ▼
-[ Spring Boot 3.3.5 Backend (Java 21) ]
-   (DBMS-DA3/backend - Listening on port 8082)
+[ Netlify Functions (Node.js 20+) ]
+   (DBMS-DA3/netlify/functions/api.mjs)
          │
-         │ Bolt Protocol (bolt://localhost:7687)
+         │ Bolt Protocol with TLS (neo4j+s://...databases.neo4j.io)
          ▼
-[ Neo4j 5.x Graph Database ]
-   (Graph Nodes & Directed Relationships)
+[ Neo4j AuraDB Free Cloud Instance ]
+   (Cloud Graph Database)
 ```
+
+### Local Reference Backend (Spring Boot 3.3.5 / Java 21)
+The reference Spring Boot backend remains fully functional inside `DBMS-DA3/backend/` and can be run locally with local Neo4j:
+
+```
+[ Web Browser Frontend ] ──HTTP (8082)──> [ Spring Boot 3.3.5 (Java 21) ] ──Bolt──> [ Local Neo4j (7687) ]
+```
+
+---
 
 ### Graph Domain Model:
 - **Nodes**:
@@ -57,135 +69,124 @@ This folder contains the complete **DBMS DA3** implementation of the SwiftShip C
 ```text
 DBMS-DA3/
 ├── README.md                     # This documentation
+├── DEPLOYMENT.md                 # Complete Netlify Free + AuraDB deployment guide
+├── netlify.toml                  # Authoritative Netlify build, redirect, and header rules
+├── package.json                  # Node.js dependencies (neo4j-driver) and test scripts
 ├── frontend/                     # Pure HTML5/CSS3/JavaScript SPA
 │   ├── index.html                # Main operations dashboard interface
 │   ├── styles.css                # Custom responsive CSS design system
 │   ├── app.js                    # Centralized async REST API client & view controllers
+│   ├── config.js                 # Runtime API configuration (same-origin by default)
 │   └── README.md                 # Frontend documentation
-└── backend/                      # Spring Boot 3.3.5 + Spring Data Neo4j
+├── netlify/                      # Serverless backend implementation
+│   └── functions/
+│       ├── api.mjs               # Universal API router & Netlify Functions entrypoint
+│       └── lib/                  # Modular domain service libraries:
+│           ├── database.mjs      # Neo4j driver connection pool & type serialization
+│           ├── utils.mjs         # Response formatting, CORS, pagination helpers
+│           ├── dashboard.mjs     # Metrics aggregation & recent activity
+│           ├── customers.mjs     # Customer management & parcel history
+│           ├── parcels.mjs       # Parcel booking, pricing calculation, lifecycle
+│           ├── tracking.mjs      # Milestone tracking events & current status
+│           ├── delivery-attempts.mjs # Attempt recording & delivery result sync
+│           ├── agents.mjs        # Delivery agent assignment & run tracking
+│           ├── vehicles.mjs      # Fleet inventory & driver binding
+│           ├── branches.mjs      # Logistics hubs & graph connectivity
+│           ├── routes.mjs        # Shipping lane exploration
+│           ├── payments.mjs      # Payment processing & financial summaries
+│           ├── support-tickets.mjs # Customer inquiries & staff assignment
+│           ├── services.mjs      # Shipping tiers & rate configuration
+│           └── staff.mjs         # Internal team member administration
+├── test/                         # Automated Node.js unit tests (25 passing tests)
+│   ├── api_routing.test.mjs
+│   ├── database_serialization.test.mjs
+│   └── utils.test.mjs
+└── backend/                      # Reference Java 21 / Spring Boot 3.3.5 backend
     ├── pom.xml                   # Maven dependencies (Java 21, Spring Boot, Neo4j)
     ├── mvnw / mvnw.cmd           # Maven wrapper scripts
-    ├── .env.example              # Environment variables template
-    ├── test-all-apis.sh          # Comprehensive automated curl test suite
+    ├── Dockerfile                # Production container specification
     ├── schema/
     │   └── neo4j_schema.cypher   # Cypher constraints & performance indexes
     └── src/
-        ├── main/
-        │   ├── java/com/courier/
-        │   │   ├── config/       # CorsConfig, DataInitializer
-        │   │   ├── controller/   # 13 REST API controllers
-        │   │   ├── dto/          # 26 Request / Response DTO models
-        │   │   ├── exception/    # Global exception handler & error response
-        │   │   ├── model/        # Neo4j @Node entity definitions
-        │   │   ├── repository/   # Spring Data Neo4j Cypher repositories
-        │   │   └── service/      # Business logic & graph transactions
-        │   └── resources/
-        │       └── application.properties # Neo4j & server configuration
+        ├── main/java/com/courier/ # Full reference Java controllers & services
         └── test/                 # Mockito unit tests (30 passing tests)
 ```
 
 ---
 
-## ⚙️ Environment Variables & Configuration
+## 🚀 How to Run the Application
 
-The backend reads configuration from `application.properties` or environment variables:
+### Option A: Serverless on Netlify Free (Production Recommended)
+Refer to [`DBMS-DA3/DEPLOYMENT.md`](DEPLOYMENT.md) for step-by-step setup:
+1. Base directory: `DBMS-DA3`
+2. Build command: `npm install`
+3. Publish directory: `frontend`
+4. Functions directory: `netlify/functions`
+5. Configure environment variables in Netlify (`NEO4J_URI`, `NEO4J_USERNAME`, `NEO4J_PASSWORD`, `NEO4J_DATABASE`).
 
-| Variable | Default Value | Description |
-| :--- | :--- | :--- |
-| `SERVER_PORT` | `8082` | HTTP port for the Spring Boot REST API |
-| `NEO4J_URI` | `bolt://localhost:7687` | Neo4j Bolt connection endpoint |
-| `NEO4J_USERNAME` | `neo4j` | Neo4j database username |
-| `NEO4J_PASSWORD` | `12345678` | Neo4j database password |
-| `CORS_ALLOWED_ORIGINS` | `http://localhost:3000,http://localhost:5173` | Allowed CORS origins (wildcard patterns supported) |
-
----
-
-## 🚀 How to Run the DA3 Application
-
-### Step 1: Start Neo4j Database
-
-If you have Docker installed:
-```bash
-docker run -d \
-  --name courier-neo4j \
-  -p 7474:7474 -p 7687:7687 \
-  -e NEO4J_AUTH=neo4j/12345678 \
-  neo4j:5-community
-```
-*(Alternatively, use **Neo4j Desktop** or a local Neo4j 5.x installation with port `7687` and password matching your config).*
-
-Apply constraints and indexes (optional but recommended):
-```bash
-# Execute schema/neo4j_schema.cypher in the Neo4j Browser at http://localhost:7474
-```
-
-### Step 2: Build & Start the Backend
-
-Open a terminal in `DBMS-DA3/backend`:
+### Option B: Local Full-Stack with Netlify CLI
+Run the entire serverless application locally:
 ```powershell
-# On Windows PowerShell:
-.\mvnw.cmd spring-boot:run
-
-# On Linux / macOS:
-./mvnw spring-boot:run
+cd D:\projects\CourierManagement\DBMS-DA3
+npm install
+npx netlify dev
 ```
-The backend starts up on **port 8082**:
-- Health endpoint: `http://localhost:8082/actuator/health`
-- Base API: `http://localhost:8082/api`
+Serves both the static frontend and serverless functions together at `http://localhost:8888`.
 
-### Step 3: Run the Frontend
-
-The frontend is a standalone, dependency-free HTML/CSS/JavaScript application:
-1. Simply double-click or open `DBMS-DA3/frontend/index.html` in any modern web browser (Chrome, Edge, Firefox).
-2. Or serve it using any local static web server:
+### Option C: Local Java Reference Backend
+1. Start local Neo4j (port 7687).
+2. Start Spring Boot backend:
    ```powershell
-   cd D:\projects\CourierManagement\DBMS-DA3\frontend
-   # Using Python:
-   python -m http.server 8080
-   # Or using Node:
-   npx serve .
+   cd D:\projects\CourierManagement\DBMS-DA3\backend
+   .\mvnw.cmd spring-boot:run
    ```
-3. Open `http://localhost:8080` in your browser. The connection indicator in the sidebar will display **"Connected (8082)"** once the backend is reachable.
+3. Open `DBMS-DA3/frontend/index.html` in your browser.
 
 ---
 
-## 🧪 Testing & Verification
+## 🧪 Automated Testing
 
-### 1. Backend Unit Test Suite (30 Tests)
-Run all 30 Mockito controller and service tests:
+### 1. Serverless Node.js Tests (25 Tests)
+```powershell
+cd D:\projects\CourierManagement\DBMS-DA3
+npm test
+```
+**Results:** 25 tests pass in ~600ms, validating:
+- Universal Lambda v1 and Web Request v2 function handlers
+- CORS preflight responses (204)
+- 404 handler for unmatched routes
+- Strict request validation (vehicle types, ticket priorities, delivery results, payment methods)
+- Neo4j 64-bit integer, temporal, node, and relationship deserialization
+- Page response metrics calculation
+
+### 2. Java Reference Backend Tests (30 Tests)
 ```powershell
 cd D:\projects\CourierManagement\DBMS-DA3\backend
 .\mvnw.cmd test
 ```
-**Test Results:**
-```text
-[INFO] Results:
-[INFO] Tests run: 30, Failures: 0, Errors: 0, Skipped: 0
-[INFO] BUILD SUCCESS
-```
-
-### 2. End-to-End REST API Test Suite
-With Neo4j and the backend running, execute the automated Bash test suite:
-```bash
-cd DBMS-DA3/backend
-bash test-all-apis.sh
-```
+**Results:** 30 tests run, 0 failures, 0 errors.
 
 ---
 
 ## 🌐 REST API Endpoint Reference
 
+All endpoints below are available under `https://<site>.netlify.app/api/...` (or `http://localhost:8082/api/...` on Spring Boot):
+
 | Domain | Method | Endpoint | Description |
 | :--- | :--- | :--- | :--- |
-| **Dashboard** | `GET` | `/api/dashboard/summary` | Live metrics, status counts, revenue, and recent activity |
-| **Parcels** | `POST` | `/api/parcels` | Book shipment with customer, origin/destination hubs, service |
+| **Health** | `GET` | `/actuator/health` or `/api/health` | Live database connectivity verification |
+| **Dashboard** | `GET` | `/api/dashboard/summary` | Real-time operations metrics, workload, and revenue |
+| **Parcels** | `POST` | `/api/parcels` | Book shipment with dynamic rate calculation |
 | | `GET` | `/api/parcels` | Paged listing with status/customer/branch filters |
 | | `GET` | `/api/parcels/{trackingNumber}` | Retrieve parcel details and delivery charge |
 | | `PUT` | `/api/parcels/{trackingNumber}` | Update weight, charge, or status |
 | | `POST` | `/api/parcels/{trackingNumber}/cancel` | Cancel an active parcel shipment |
 | **Tracking** | `GET` | `/api/tracking/{trackingNumber}` | Retrieve complete chronological milestone event history |
 | | `GET` | `/api/tracking/{trackingNumber}/current-status`| Latest scan status and location |
-| | `POST` | `/api/tracking` | Record a new milestone scan (picked up, transit, delivered) |
+| | `POST` | `/api/tracking` | Record a new milestone scan |
+| **Delivery Attempts** | `POST` | `/api/delivery-attempts` | Record delivery attempt with auto-sync to parcel |
+| | `GET` | `/api/delivery-attempts` | List all delivery attempts |
+| | `GET` | `/api/delivery-attempts/parcel/{trackingNumber}` | Attempts by parcel |
 | **Customers** | `POST` | `/api/customers` | Register customer profile |
 | | `GET` | `/api/customers` | Paged customer directory |
 | | `GET` | `/api/customers/{customerId}` | Profile details |
@@ -198,11 +199,11 @@ bash test-all-apis.sh
 | | `POST` | `/api/agents/{agentId}/assign/{trackingNumber}` | Assign agent to delivery run |
 | | `POST` | `/api/agents/{agentId}/complete/{trackingNumber}` | Mark delivery run complete |
 | **Fleet** | `POST` | `/api/vehicles` | Register vehicle (`VAN`, `TRUCK`, `BIKE`) |
-| | `GET` | `/api/vehicles` | List fleet with capacity and status |
+| | `GET` | `/api/vehicles` | List fleet with capacity and driver assignment |
 | | `POST` | `/api/vehicles/{vehicleId}/assign-agent/{agentId}` | Assign driver to vehicle |
 | | `POST` | `/api/vehicles/{vehicleId}/unassign` | Unassign driver from vehicle |
 | **Branches** | `POST` | `/api/branches` | Create logistics hub |
-| | `GET` | `/api/branches` | List all hubs |
+| | `GET` | `/api/branches` | List all hubs with originating/destined counts |
 | | `GET` | `/api/branches/{branchId}/connected` | Connected transit hubs in graph |
 | **Routes** | `GET` | `/api/routes` | Explore transit lanes, distances, and transit times |
 | **Payments** | `POST` | `/api/payments` | Record payment (`CASH`, `CARD`, `UPI`) |
@@ -218,13 +219,8 @@ bash test-all-apis.sh
 
 ---
 
-## 🛠️ Troubleshooting
+## 🛠️ Project Preservation Confirmation
 
-1. **Backend Fails to Start (`Connection refused: /127.0.0.1:7687`)**:
-   - Ensure Neo4j is running. Verify via `curl -I http://localhost:7474` or check port `7687`.
-   - Verify credentials in `application.properties` match your Neo4j instance (`neo4j` / `12345678`).
-2. **Frontend Shows "Offline (8082)"**:
-   - Verify Spring Boot is running on port 8082 (`curl http://localhost:8082/actuator/health`).
-   - Click the connection status in the sidebar to view or change the configured API base URL.
-3. **CORS Rejection**:
-   - `CorsConfig.java` has been configured with `setAllowedOriginPatterns(Arrays.asList("*"))` allowing all browser origins, local file schemes, and local dev servers.
+- **DA2 Oracle AWS Implementation**: Preserved untouched in `courier-backend/`, `courier_frontend_ui/`, `scripts/`, `systemd/`, root batch scripts, and Git history.
+- **DA3 Java Backend**: Preserved untouched in `DBMS-DA3/backend/`.
+- **DA3 Serverless Implementation**: Self-contained inside `DBMS-DA3/`.

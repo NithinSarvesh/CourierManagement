@@ -18,18 +18,34 @@ const isLocalEndpoint = (url) => {
 };
 
 const resolveApiBase = () => {
-  const runtimeConfig = (typeof window !== 'undefined' && window.SWIFTSHIP_CONFIG && window.SWIFTSHIP_CONFIG.apiBase) || '';
-  if (runtimeConfig.trim()) {
-    return runtimeConfig.trim().replace(/\/+$/, '');
+  const runtimeConfig = (typeof window !== 'undefined' && window.SWIFTSHIP_CONFIG && typeof window.SWIFTSHIP_CONFIG.apiBase === 'string')
+    ? window.SWIFTSHIP_CONFIG.apiBase.trim()
+    : null;
+
+  if (runtimeConfig !== null && runtimeConfig !== '') {
+    return runtimeConfig.replace(/\/+$/, '');
   }
+
   const localStorageBase = (typeof localStorage !== 'undefined' && localStorage.getItem('SWIFTSHIP_API_BASE')) || '';
   if (localStorageBase.trim()) {
-    return localStorageBase.trim().replace(/\/+$/, '');
+    // If running in production (e.g. Netlify) and stored URL is localhost, clean stale setting
+    if (isProductionOrigin() && isLocalEndpoint(localStorageBase)) {
+      try { localStorage.removeItem('SWIFTSHIP_API_BASE'); } catch (_) {}
+    } else {
+      return localStorageBase.trim().replace(/\/+$/, '');
+    }
   }
+
   const globalBase = (typeof window !== 'undefined' && window.__API_BASE__) || '';
   if (globalBase.trim()) {
     return globalBase.trim().replace(/\/+$/, '');
   }
+
+  // When deployed on Netlify or when runtimeConfig is empty string, default to same-origin Netlify Functions:
+  if (isProductionOrigin() || runtimeConfig === '') {
+    return '';
+  }
+
   return 'http://localhost:8082';
 };
 const API_BASE = resolveApiBase();
@@ -89,7 +105,8 @@ async function api(path, method = 'GET', data = null) {
     res = await fetch(url, options);
   } catch (netErr) {
     updateConnStatus(false);
-    throw new Error(`Unable to connect to backend at ${API_BASE}. Please ensure the Koyeb Spring Boot service is running and CORS is configured.`);
+    const target = API_BASE ? API_BASE : 'Netlify Functions';
+    throw new Error(`Unable to connect to backend at ${target}. Please verify your Netlify Functions and Neo4j database connection.`);
   }
 
   updateConnStatus(true);
@@ -2016,12 +2033,12 @@ $('#globalSearch')?.addEventListener('keydown', e => {
 });
 
 function promptBackendUrl() {
-  const current = localStorage.getItem('SWIFTSHIP_API_BASE') || API_BASE;
-  const next = prompt('SwiftShip Koyeb Backend API URL (e.g. https://swiftship-backend.koyeb.app):\nLeave empty to reset to default.', current);
+  const current = localStorage.getItem('SWIFTSHIP_API_BASE') || (API_BASE ? API_BASE : 'Same Origin (Netlify Functions)');
+  const next = prompt('SwiftShip Backend API Base URL:\n- Leave empty for same-origin Netlify Functions (recommended for Netlify Free)\n- Or enter custom backend URL (e.g. http://localhost:8082):', current);
   if (next !== null) {
     let trimmed = next.trim().replace(/\/+$/, '');
-    if (trimmed) {
-      if (typeof window !== 'undefined' && window.location && window.location.protocol === 'https:' && trimmed.startsWith('http://')) {
+    if (trimmed && trimmed.toLowerCase() !== 'same origin (netlify functions)') {
+      if (typeof window !== 'undefined' && window.location && window.location.protocol === 'https:' && trimmed.startsWith('http://') && !isLocalEndpoint(trimmed)) {
         const upgrade = confirm('You are browsing on HTTPS (Netlify). Browsers block unencrypted HTTP API calls (Mixed Content).\n\nDo you want to use HTTPS instead:\n' + trimmed.replace(/^http:\/\//, 'https://') + ' ?');
         if (upgrade) {
           trimmed = trimmed.replace(/^http:\/\//, 'https://');
@@ -2041,7 +2058,7 @@ $('#connWorkspace')?.addEventListener('click', promptBackendUrl);
 // Initial boot
 (async function init() {
   const footerBase = $('#footerApiBase');
-  if (footerBase) footerBase.textContent = API_BASE;
+  if (footerBase) footerBase.textContent = API_BASE ? API_BASE : 'Netlify Functions (Same Origin)';
   await checkBackendHealth();
   go('dashboard');
   setInterval(checkBackendHealth, 30000);
