@@ -4,9 +4,9 @@
 # ==============================================================================
 
 [build]
-  publish = "DBMS-DA3/frontend"
+  publish = "DBMS-DA3"
   functions = "DBMS-DA3/netlify/functions"
-  command = "cd DBMS-DA3 && npm install && cd frontend && npm install"
+  command = "cd DBMS-DA3 && npm install"
 
 [functions]
   directory = "DBMS-DA3/netlify/functions"

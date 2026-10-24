@@ -1,0 +1,2 @@
+/api/*  /.netlify/functions/api?route=/api/:splat  200!
+/actuator/health  /.netlify/functions/api?route=/actuator/health  200!

@@ -1,0 +1,33 @@
+<!doctype html>
+<html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>SwiftShip · Courier Console</title><link rel="stylesheet" href="styles.css"></head>
+<body>
+<div class="app">
+<aside class="sidebar" id="sidebar">
+ <div class="brand"><div class="brandmark">↗</div><div><b>swiftship</b><small>COURIER OPERATIONS</small></div></div>
+ <div class="workspace" id="connWorkspace" title="Click to view API endpoint" style="cursor:pointer"><span class="dot checking" id="connDot"></span> <span id="connStatus">Checking backend...</span> <span class="chev">⚙</span></div>
+ <div class="navlabel">WORKSPACE</div><nav id="nav">
+ <button class="navitem active" data-page="dashboard"><span>▦</span> Overview</button>
+ <button class="navitem" data-page="parcels"><span>▣</span> Parcels <i id="navParcelCount">—</i></button>
+ <button class="navitem" data-page="tracking"><span>⌖</span> Tracking</button>
+ <button class="navitem" data-page="customers"><span>♙</span> Customers</button>
+ <button class="navitem" data-page="agents"><span>♧</span> Delivery agents</button>
+ <button class="navitem" data-page="vehicles"><span>▰</span> Fleet</button>
+ <button class="navitem" data-page="branches"><span>⌂</span> Branches</button>
+ <button class="navitem" data-page="routes"><span>⌁</span> Routes</button>
+ <div class="navlabel">MANAGEMENT</div>
+ <button class="navitem" data-page="payments"><span>＄</span> Payments</button>
+ <button class="navitem" data-page="support"><span>☏</span> Support tickets</button>
+ <button class="navitem" data-page="services"><span>◇</span> Services</button>
+ <button class="navitem" data-page="staff"><span>♙</span> Staff & access</button>
+ </nav>
+ <div class="sidebarbottom"><div class="helpbox"><div class="helpicon">?</div><b>Need a hand?</b><p>Spring Boot Neo4j REST API.</p><a href="#" onclick="toast('API: ' + API_BASE);return false">Endpoint info ↗</a></div><div class="profile"><div class="avatar">AS</div><div><b>Alex Smith</b><small>Operations admin</small></div><span>•••</span></div></div>
+</aside>
+<main class="main">
+<header class="topbar"><button class="hamb" id="hamb">☰</button><div class="crumb">Workspace <span>/</span> <b id="crumb">Overview</b></div><div class="topactions"><div class="search"><span>⌕</span><input id="globalSearch" placeholder="Search anything..."><kbd>⌘ K</kbd></div><button class="iconbtn" title="Refresh data" onclick="refreshCurrentPage()">♧<em></em></button><div class="topavatar">AS</div></div></header>
+<section class="content" id="content"></section>
+<footer>SwiftShip Console <span>•</span> Connected to Spring Boot Neo4j REST API · <span id="footerApiBase">http://localhost:8082</span></footer>
+</main></div>
+<div class="toast" id="toast"></div>
+<div class="modalback" id="modalback"><div class="modal" id="modalContainer"><div class="modalhead"><h3 id="modalTitle">Create record</h3><button type="button" onclick="closeModal()">×</button></div><div id="modalAlert" style="display:none;margin-bottom:12px;padding:10px 12px;border-radius:6px;font-size:11px;background:#fdf2f2;color:#9b1c1c;border:1px solid #f8b4b4;"></div><form id="modalForm"><div id="modalFields" class="formgrid"></div><div class="modalfoot" id="modalFoot"><button type="button" class="btn ghost" onclick="closeModal()">Cancel</button><button type="submit" class="btn primary" id="modalSubmitBtn">Save record</button></div></form><div id="modalCustomContent" style="display:none"></div></div></div>
+<script src="config.js"></script>
+<script src="app.js"></script></body></html>

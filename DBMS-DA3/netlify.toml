@@ -4,9 +4,9 @@
 # ==============================================================================
 
 [build]
-  publish = "frontend"
+  publish = "."
   functions = "netlify/functions"
-  command = "npm install && cd frontend && npm install"
+  command = "npm install"
 
 [functions]
   directory = "netlify/functions"
