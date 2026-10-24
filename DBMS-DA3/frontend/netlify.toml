@@ -1,6 +1,6 @@
 # Netlify Configuration for SwiftShip Courier Operations Frontend
 [build]
-  publish = "."
+  publish = "DBMS-DA3/frontend"
 
 [[headers]]
   for = "/*"

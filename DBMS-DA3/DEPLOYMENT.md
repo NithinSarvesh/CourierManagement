@@ -69,14 +69,15 @@ flowchart TD
    | Setting | Value | Explanation |
    |---|---|---|
    | **Branch to deploy** | `main` | Production branch |
-   | **Base directory** | `DBMS-DA3/frontend` | Points Netlify directly to the static frontend |
+   | **Base directory** | *(Leave unset / empty)* | Uses repository root as base |
+   | **Package directory** | `DBMS-DA3/frontend` | Directory of the frontend package in monorepo |
    | **Build command** | *(Leave empty)* | Vanilla HTML/CSS/JS requires no build step |
-   | **Publish directory** | `.` | Publishes index.html, styles.css, app.js, config.js |
+   | **Publish directory** | `DBMS-DA3/frontend` | Publishes index.html, styles.css, app.js, config.js |
 
-5. Click **Deploy site**. Netlify will deploy immediately (under 10 seconds).
+5. Click **Deploy site** (or **Save** and trigger a deploy if editing existing site). Netlify will deploy immediately.
 6. Note down your real public Netlify site URL from the dashboard:
    ```
-   https://<your-site-name>.netlify.app
+   https://dbmsda3.netlify.app (or your assigned site name)
    ```
    *(You can rename the site under Site configuration → Change site name).*
 
