@@ -102,7 +102,7 @@ export async function getRecentEvents(limit = 20) {
     `MATCH (p:Parcel)-[:HAS_TRACKING_EVENT]->(te:TrackingEvent)
      RETURN te.eventId AS eventId, p.trackingNumber AS trackingNumber, te.location AS location,
             te.status AS status, toString(te.timestamp) AS timestamp, te.remarks AS remarks
-     ORDER BY te.timestamp DESC LIMIT $limit`,
+     ORDER BY te.timestamp DESC LIMIT toInteger($limit)`,
     { limit: l }
   );
   return rows;

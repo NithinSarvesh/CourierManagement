@@ -18,7 +18,7 @@ export async function listCustomers({ page = 0, size = 10 } = {}) {
        OPTIONAL MATCH (c)-[:BOOKED]->(p:Parcel)
        RETURN c.customerId AS customerId, c.name AS name, c.email AS email,
               c.phone AS phone, c.address AS address, count(p) AS totalParcelsBooked
-       ORDER BY c.customerId ASC SKIP $skip LIMIT $limit`,
+       ORDER BY c.customerId ASC SKIP toInteger($skip) LIMIT toInteger($limit)`,
       { skip, limit: s }
     ),
     runQuery('MATCH (c:Customer) RETURN count(c) AS total')

@@ -155,7 +155,7 @@ export async function searchParcels({
               pay.paymentId AS paymentId, pay.amount AS paymentAmount,
               pay.method AS paymentMethod, pay.status AS paymentStatus,
               toString(pay.paymentDate) AS paymentDate, pay.transactionRef AS transactionRef
-       ORDER BY p.trackingNumber DESC SKIP $skip LIMIT $limit`,
+       ORDER BY p.trackingNumber DESC SKIP toInteger($skip) LIMIT toInteger($limit)`,
       {
         status: filterStatus,
         customerId: filterCustomer,

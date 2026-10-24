@@ -217,7 +217,7 @@ export async function listPayments({ status = null, method = null, page = 0, siz
               c.customerId AS customerId, c.name AS customerName,
               pay.amount AS amount, pay.method AS method, pay.status AS status,
               toString(pay.paymentDate) AS paymentDate, pay.transactionRef AS transactionRef
-       ORDER BY pay.paymentId DESC SKIP $skip LIMIT $limit`,
+       ORDER BY pay.paymentId DESC SKIP toInteger($skip) LIMIT toInteger($limit)`,
       { status: filterStatus, method: filterMethod, skip, limit: s }
     ),
     runQuery(

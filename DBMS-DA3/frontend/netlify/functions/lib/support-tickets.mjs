@@ -136,7 +136,7 @@ export async function listTickets({ status = null, customerId = null, page = 0, 
               t.priority AS priority, t.remarks AS remarks,
               s.staffId AS assignedStaffId, s.name AS assignedStaffName,
               toString(t.createdAt) AS createdAt
-       ORDER BY t.ticketId DESC SKIP $skip LIMIT $limit`,
+       ORDER BY t.ticketId DESC SKIP toInteger($skip) LIMIT toInteger($limit)`,
       { status: filterStatus, customerId: filterCustomer, skip, limit: s }
     ),
     runQuery(
