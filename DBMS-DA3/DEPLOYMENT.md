@@ -3,7 +3,7 @@
 This guide provides end-to-end instructions for deploying the **SwiftShip Courier Management System (DBMS-DA3)** using **Netlify** (Static Frontend), **Koyeb** (Docker MicroVM Backend), and **Neo4j AuraDB** (Cloud Graph Database).
 
 > [!NOTE]
-> All deployment files and configurations are strictly confined to `DBMS-DA3/`. The existing DA2 project (Oracle database, EC2 scripts, and systemd services) remains 100% intact and preserved.
+> All deployment files and configurations are strictly confined to `DBMS-DA3/`. The existing DA2 project (Oracle database, AWS EC2 scripts, and systemd services) remains 100% intact and preserved.
 
 ---
 
@@ -27,13 +27,26 @@ flowchart LR
 
 ---
 
-## 2. Step 1: Provision or Reuse Neo4j AuraDB
+## 2. Correct Order of Manual Cloud Deployment
+
+Deploying in this exact order ensures you have your real Netlify URL ready before setting up Koyeb, so you can configure CORS accurately on the very first try.
+
+```mermaid
+flowchart TD
+    A["Stage A: Neo4j AuraDB<br/>Create/reuse DB, obtain credentials, run schema"] --> B["Stage B: Netlify Frontend<br/>Deploy static site, obtain real Netlify URL"]
+    B --> C["Stage C: Koyeb Backend<br/>Deploy Docker web service with AuraDB credentials and Netlify CORS"]
+    C --> D["Stage D: Connect Services<br/>Update config.js with real Koyeb URL, push to main, verify"]
+```
+
+---
+
+### Stage A — Neo4j AuraDB
 
 1. Log in to the [Neo4j Aura Console](https://console.neo4j.io/).
-2. If you already have an active instance, you can reuse it. If creating a new one:
+2. Create or reuse an instance:
    - Click **New Instance** → Choose **AuraDB Free**.
    - Name: `SwiftShip-Courier` (or any preferred name).
-   - **Download the credentials text file** containing:
+   - **Download and securely save the credentials text file** containing:
      - **URI**: `neo4j+s://<dbid>.databases.neo4j.io`
      - **Username**: `neo4j`
      - **Password**: `<your-auradb-password>`
@@ -43,10 +56,36 @@ flowchart LR
    // DBMS-DA3/backend/schema/neo4j_schema.cypher
    ```
    This creates all uniqueness constraints and performance indexes using safe `IF NOT EXISTS` syntax without dropping existing data.
+4. Confirm the database is running and ready to accept connections.
 
 ---
 
-## 3. Step 2: Deploy Backend to Koyeb (Docker Web Service)
+### Stage B — Netlify Frontend
+
+1. Log in to [Netlify](https://app.netlify.com/).
+2. Click **Add new site** → **Import an existing project** → **GitHub**.
+3. Authorize access to `NithinSarvesh/CourierManagement`.
+4. Configure the build and deployment parameters:
+   | Setting | Value | Explanation |
+   |---|---|---|
+   | **Branch to deploy** | `main` | Production branch |
+   | **Base directory** | `DBMS-DA3/frontend` | Points Netlify directly to the static frontend |
+   | **Build command** | *(Leave empty)* | Vanilla HTML/CSS/JS requires no build step |
+   | **Publish directory** | `.` | Publishes index.html, styles.css, app.js, config.js |
+
+5. Click **Deploy site**. Netlify will deploy immediately (under 10 seconds).
+6. Note down your real public Netlify site URL from the dashboard:
+   ```
+   https://<your-site-name>.netlify.app
+   ```
+   *(You can rename the site under Site configuration → Change site name).*
+
+> [!TIP]
+> At this stage, opening your Netlify site will display a clear banner: `⚠️ Action Required: Koyeb Backend URL Not Configured`. This is expected because the backend has not yet been deployed.
+
+---
+
+### Stage C — Koyeb Backend
 
 1. Sign up or log in to [Koyeb Dashboard](https://app.koyeb.com/).
 2. Click **Create Service** and select **GitHub**.
@@ -66,8 +105,8 @@ flowchart LR
      - **Port**: `8080`
      - **Protocol**: `HTTP`
      - **Path**: `/`
-   > [!TIP]
-   > Koyeb exposes port `8080` to public HTTPS traffic (`https://<service-name>-<org>.koyeb.app`) and injects `PORT=8080` into the container. Spring Boot reads `${PORT:${SERVER_PORT:8082}}` and binds automatically to port 8080. Outside Docker (in local dev), it still runs on port 8082.
+   > [!NOTE]
+   > Koyeb exposes port `8080` to public HTTPS traffic (`https://<service-name>-<org>.koyeb.app`) and injects `PORT=8080` into the container. Spring Boot reads `${PORT:${SERVER_PORT:8082}}` and binds automatically to `0.0.0.0:8080`. When running locally outside Docker, it retains port `8082`.
 
 6. **Health Check Configuration**:
    - Type: `HTTP`
@@ -81,85 +120,71 @@ flowchart LR
    Add the following variables under **Environment variables**:
    | Variable | Value | Description |
    |---|---|---|
-   | `NEO4J_URI` | `neo4j+s://<dbid>.databases.neo4j.io` | Your AuraDB connection URI |
+   | `NEO4J_URI` | `neo4j+s://<dbid>.databases.neo4j.io` | Your actual AuraDB connection URI |
    | `NEO4J_USERNAME` | `neo4j` | Database username |
    | `NEO4J_PASSWORD` | `<your-auradb-password>` | Database password |
    | `NEO4J_DATABASE` | `neo4j` | Database name |
-   | `CORS_ALLOWED_ORIGINS` | `https://localhost` *(temporary until Netlify is created)* | Will be updated with your exact Netlify URL in Step 5 |
+   | `CORS_ALLOWED_ORIGINS` | `https://<your-site-name>.netlify.app` | **Your real Netlify URL from Stage B** (no trailing slash) |
 
 8. Click **Deploy**.
 9. Wait for build and deployment to complete. Check the deployment logs:
    - Look for: `Neo4j database connectivity verified successfully (ping=1).`
-   - Note your public Koyeb backend URL:
-     `https://<service-name>-<org>.koyeb.app`
+   - Look for: `Started CourierManagementSystemApplication in ... seconds`
+   - Note down your real public Koyeb backend URL:
+     ```
+     https://<service-name>-<org>.koyeb.app
+     ```
 
 ---
 
-## 4. Step 3: Deploy Frontend to Netlify (Static Site)
+### Stage D — Connect the Services
 
-1. Sign up or log in to [Netlify](https://app.netlify.com/).
-2. Click **Add new site** → **Import an existing project**.
-3. Choose **GitHub** and authorize access to `NithinSarvesh/CourierManagement`.
-4. Configure the build & deploy settings:
-   | Setting | Value |
-   |---|---|
-   | **Branch to deploy** | `main` |
-   | **Base directory** | `DBMS-DA3/frontend` |
-   | **Build command** | *(Leave empty - vanilla HTML/CSS/JS requires no build step)* |
-   | **Publish directory** | `.` |
-
-5. Click **Deploy site**.
-6. Netlify will deploy immediately (under 10 seconds).
-7. Note down your production Netlify URL:
-   `https://<your-site-name>.netlify.app`
-   *(You can rename your site subdomain under Site configuration → Change site name).*
-
----
-
-## 5. Step 4: Configure Frontend API Base URL
-
-To connect your Netlify frontend to your Koyeb backend:
-
-### Option A: Via `config.js` (Recommended for Permanent Setup)
 1. Open [`DBMS-DA3/frontend/config.js`](file:///d:/projects/CourierManagement/DBMS-DA3/frontend/config.js) in your local repository.
 2. Set `apiBase` to your actual Koyeb public HTTPS URL:
    ```javascript
    window.SWIFTSHIP_CONFIG = {
-     apiBase: 'https://swiftship-backend-<your-org>.koyeb.app'
+     apiBase: 'https://<service-name>-<org>.koyeb.app'
    };
    ```
-3. Commit and push to GitHub:
+3. Commit and push only this configuration change to `main`:
    ```bash
    git add DBMS-DA3/frontend/config.js
-   git commit -m "fix(da3): point frontend config to production Koyeb backend"
+   git commit -m "fix(da3): point production frontend to live Koyeb backend"
    git push origin main
    ```
-4. Netlify will auto-deploy the change in seconds.
+4. Wait for Netlify to auto-deploy the update (under 10 seconds).
+5. Open your Netlify site (`https://<your-site-name>.netlify.app`).
+   - The status badge in the sidebar will change from yellow to green: `● Connected`.
+   - The setup banner disappears, and the live dashboard renders.
 
-### Option B: Instant In-Browser Setup (For Immediate Testing)
-1. Open your published Netlify site (`https://<your-site>.netlify.app`).
-2. You will see a banner: `⚠️ Action Required: Koyeb Backend URL Not Configured`.
-3. Click **Configure URL** (or click the ⚙ icon in the top-left sidebar).
-4. Enter your Koyeb URL: `https://swiftship-backend-<your-org>.koyeb.app`.
-5. The page reloads, stores the URL in `localStorage`, and connects live.
-
----
-
-## 6. Step 5: Update CORS in Koyeb Dashboard
-
-Once you have your Netlify URL:
-1. Go to your Koyeb Service → **Settings** → **Environment variables**.
-2. Update `CORS_ALLOWED_ORIGINS` to your exact Netlify origin (no trailing slash):
-   ```
-   https://<your-site-name>.netlify.app
-   ```
-3. Click **Save and deploy**. Koyeb will perform a zero-downtime rolling restart.
+> [!TIP]
+> **Instant Browser Override**: If you want to verify the connection immediately before committing `config.js`, open your Netlify site, click **Configure URL** in the banner (or the ⚙ icon in the sidebar), paste your Koyeb URL, and click OK. The page will reload and connect live using `localStorage`.
 
 ---
 
-## 7. Step 6: End-to-End Verification
+## 3. Instance Sizing & Memory Management
 
-1. **Verify Backend Actuator Health**:
+### Koyeb Free Tier Constraints (512 MB RAM / 0.1 vCPU)
+Koyeb's free tier provides a microVM with 512 MB RAM. Standard Java 21 Spring Boot applications typically allocate 500 MB+ across heap, metaspace, thread stacks, and JIT buffers, which can trigger the Linux kernel out-of-memory killer (`Exit code 137` / OOMKilled).
+
+[`DBMS-DA3/backend/Dockerfile`](file:///d:/projects/CourierManagement/DBMS-DA3/backend/Dockerfile) has been pre-configured with memory safeguards:
+- **Serial GC** (`-XX:+UseSerialGC`): Uses a single thread for garbage collection, saving 40–60 MB native memory overhead compared to G1GC.
+- **Max Heap 55%** (`-XX:MaxRAMPercentage=55.0`): Caps max heap at ~280 MB, reserving ~230 MB for Metaspace, threads, native Bolt driver buffers, and microVM overhead.
+- **Metaspace Cap** (`-XX:MaxMetaspaceSize=128m`): Prevents unbounded class metadata growth.
+- **Clean Failover** (`-XX:+ExitOnOutOfMemoryError`): Ensures the process exits cleanly for Koyeb to restart if memory peaks.
+- **Fast Entropy** (`-Djava.security.egd=file:/dev/./urandom`): Accelerates container boot time on microVMs.
+
+### Sizing Risks & Upgrades
+- **Cold Starts**: If inactive, Koyeb free services may take 20–30s to respond to the first request. The initial health check grace period must be set to `60s` to prevent premature restart during boot.
+- **Heavy Load**: For high concurrency or large query datasets, upgrade to a Koyeb Small instance (1 GB or 2 GB RAM).
+
+---
+
+## 4. End-to-End Verification Checklist
+
+Perform these verification steps once all three cloud services are running:
+
+1. **Verify Backend Health**:
    Open in your browser:
    `https://<your-koyeb-app>.koyeb.app/actuator/health`
    Expected response:
@@ -175,45 +200,31 @@ Once you have your Netlify URL:
    ```
 
 2. **Verify Frontend Live Connection**:
-   Open your Netlify site. The sidebar status badge will change from yellow to green:
-   `● Connected`
+   Open your Netlify site (`https://<your-site-name>.netlify.app`).
+   - Sidebar status badge shows `● Connected`.
+   - Browser Console (`F12`) has **zero** CORS errors, **zero** Mixed Content warnings, and **zero** requests to `localhost`.
 
-3. **Verify Business Workflows**:
-   - **Dashboard**: Stats tiles, delivery distribution, agent performance leaderboard render live data.
-   - **Customers**: Click **+ Add customer**, fill details, submit, and confirm customer appears in table.
-   - **Parcels**: Click **+ New parcel**, select sender/receiver, set weight/destination, create.
-   - **Tracking**: Navigate to **Tracking**, enter tracking number (e.g. `TRK...`), click Track, and confirm timeline steps render.
+3. **Verify Business Operations**:
+   - **Dashboard**: Overview cards (total parcels, active deliveries, revenue) and agent leaderboard render live data.
+   - **Customers**: Click **+ Add customer**, fill in test details (e.g., `Test User`, `test@example.com`, `9876543210`), click Save. Confirm the record appears in the customer table. Refresh the browser to confirm persistence in AuraDB.
+   - **Parcels**: Click **+ New parcel**, select sender and receiver, specify destination and weight, save. Note the generated tracking number (e.g., `TRK...`).
+   - **Tracking**: Open **Tracking**, enter the tracking number, click Track. Verify the journey timeline steps render accurately.
 
 ---
 
-## 8. Memory Management & Troubleshooting
+## 5. Troubleshooting Guide
 
-### Koyeb 512 MB RAM Optimization
-Koyeb's free tier provides 512 MB RAM. Java 21 Spring Boot applications can easily exceed 512 MB if unconstrained, causing the container to be killed (`Exit code 137` / OOMKilled).
-
-The [`DBMS-DA3/backend/Dockerfile`](file:///d:/projects/CourierManagement/DBMS-DA3/backend/Dockerfile) has been tuned specifically for this:
-- **Serial GC** (`-XX:+UseSerialGC`): Saves 40–60 MB native memory overhead compared to G1GC.
-- **Max Heap 55%** (`-XX:MaxRAMPercentage=55.0`): Caps heap at ~280 MB, reserving ~230 MB for Metaspace, threads, native Bolt buffers, and microVM overhead.
-- **Metaspace Limit** (`-XX:MaxMetaspaceSize=128m`): Prevents unbounded class metadata growth.
-- **Exit on OOM** (`-XX:+ExitOnOutOfMemoryError`): Ensures Koyeb restarts the container cleanly if memory peaks.
-
-If Koyeb ever runs out of memory under peak traffic:
-- In Koyeb Environment Variables, set `JAVA_OPTS`:
-  `-XX:+UseContainerSupport -XX:MaxRAMPercentage=50.0 -XX:+UseSerialGC -XX:MaxMetaspaceSize=112m -XX:+ExitOnOutOfMemoryError`
-
-### Common Errors & Solutions
-
-| Error | Root Cause | Solution |
+| Issue | Root Cause | Exact Fix |
 |---|---|---|
-| **Mixed Content: The page was loaded over HTTPS but requested an insecure resource** | Frontend is on HTTPS (Netlify) but backend URL was entered as `http://` | Ensure backend URL in `config.js` starts with `https://`. Koyeb routes all traffic through HTTPS automatically. |
-| **CORS Policy: No 'Access-Control-Allow-Origin' header** | `CORS_ALLOWED_ORIGINS` in Koyeb does not match Netlify URL | In Koyeb env vars, set `CORS_ALLOWED_ORIGINS=https://<your-site>.netlify.app` exactly (case-sensitive, no trailing slash). |
-| **Backend crash with `CRITICAL: Failed to connect to Neo4j`** | Invalid Neo4j URI or password | Verify `NEO4J_URI` uses `neo4j+s://` and check password in Neo4j Aura console. Ensure AuraDB instance is in "Running" state. |
-| **Koyeb Health check failing / deployment timeout** | Container takes longer to start than health check grace period | In Koyeb service settings, ensure Health Check **Grace period** is set to `60s` to give Spring Boot enough time to start up and verify AuraDB. |
-| **Frontend displays "Setup API (Click ⚙)"** | `config.js` has empty `apiBase` and no override in `localStorage` | Click ⚙ in the sidebar or update `config.js` with your Koyeb URL and commit. |
+| **Mixed Content: The page was loaded over HTTPS but requested an insecure resource** | Backend URL in `config.js` was entered with `http://` instead of `https://` | Edit `config.js` and ensure the URL begins with `https://`. Koyeb routes all incoming traffic via TLS automatically. |
+| **CORS Policy: No 'Access-Control-Allow-Origin' header** | `CORS_ALLOWED_ORIGINS` in Koyeb does not match your Netlify origin | In Koyeb service settings → **Environment variables**, update `CORS_ALLOWED_ORIGINS` to `https://<your-site-name>.netlify.app` exactly (no trailing slash). Click **Save and deploy**. |
+| **Backend crash with `CRITICAL: Failed to connect to Neo4j`** | Invalid Neo4j URI or password in Koyeb env vars | Verify `NEO4J_URI` uses `neo4j+s://`, not plain `bolt://`. Verify username is `neo4j` and check the password from your AuraDB credentials file. |
+| **Koyeb Health check failing / deployment timeout** | JVM startup took longer than health check grace period | In Koyeb service settings → Health Checks, ensure **Grace period** is set to `60s`. |
+| **Frontend displays "Setup API (Click ⚙)"** | `config.js` has empty `apiBase` and no override in `localStorage` | Click **Configure URL** in the banner or update `config.js` with your Koyeb URL and push to `main`. |
 
 ---
 
-## 9. Preservation Confirmation
+## 6. Project Preservation Confirmation
 
-- **DA2 AWS Oracle System**: Remains 100% intact in `courier-backend/`, `courier_frontend_ui/`, `scripts/`, `systemd/`, root files.
-- **DA3 System**: Independent, fully self-contained in `DBMS-DA3/`.
+- **DA2 Oracle AWS Implementation**: Preserved untouched in `courier-backend/`, `courier_frontend_ui/`, `scripts/`, `systemd/`, root batch scripts, and Git history.
+- **DA3 System**: Fully isolated and self-contained in `DBMS-DA3/`.

@@ -243,6 +243,17 @@ function pageHead(title, desc, btnText, btnAction) {
 }
 
 function renderErrorBanner(error) {
+  if (isProductionOrigin() && isLocalEndpoint(API_BASE)) {
+    return `
+      <div class="error-banner" style="background:#fffbeb;border:1px solid #f59e0b;color:#92400e;padding:16px 20px;border-radius:8px;display:flex;align-items:center;justify-content:space-between;gap:16px;">
+        <div>
+          <strong style="display:block;font-size:14px;margin-bottom:4px;">⚠️ Action Required: Koyeb Backend URL Not Configured</strong>
+          <span style="font-size:12px;">SwiftShip is deployed on Netlify (<code>${window.location.hostname}</code>), but the backend URL is still pointing to localhost. Set your deployed Koyeb HTTPS URL in <code>config.js</code> or click Configure below.</span>
+        </div>
+        <button type="button" class="btn primary" onclick="promptBackendUrl()" style="white-space:nowrap;padding:8px 16px;background:#d97706;border:none;color:#fff;border-radius:6px;cursor:pointer;font-weight:600;">⚙ Configure URL</button>
+      </div>
+    `;
+  }
   return `
     <div class="error-banner">
       <div><b>Error:</b> ${error.message || error}</div>

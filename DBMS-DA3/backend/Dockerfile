@@ -14,8 +14,8 @@ COPY mvnw pom.xml ./
 # Normalize line endings from Windows CRLF to Linux LF and set executable permission
 RUN sed -i 's/\r$//' ./mvnw && chmod +x ./mvnw
 
-# Pre-fetch project dependencies offline
-RUN ./mvnw dependency:go-offline -B || true
+# Pre-fetch project dependencies to leverage Docker layer caching
+RUN ./mvnw dependency:resolve -B || true
 
 # Copy source code and build production JAR
 COPY src/ src/
