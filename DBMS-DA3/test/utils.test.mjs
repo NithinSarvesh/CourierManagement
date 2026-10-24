@@ -56,6 +56,28 @@ test('parseEvent() handles query route rewrite', () => {
   assert.equal(parsed.path, '/api/parcels/CR001');
 });
 
+test('parseEvent() falls back to x-forwarded-uri when path is functions entrypoint', () => {
+  const event = {
+    httpMethod: 'GET',
+    path: '/.netlify/functions/api',
+    headers: { 'x-forwarded-uri': '/api/branches' }
+  };
+
+  const parsed = parseEvent(event);
+  assert.equal(parsed.path, '/api/branches');
+});
+
+test('parseEvent() falls back to rawUrl when path is functions entrypoint', () => {
+  const event = {
+    httpMethod: 'GET',
+    path: '/.netlify/functions/api',
+    rawUrl: 'https://dbmsda3.netlify.app/api/services'
+  };
+
+  const parsed = parseEvent(event);
+  assert.equal(parsed.path, '/api/services');
+});
+
 test('parseEvent() handles malformed JSON safely', () => {
   const event = {
     httpMethod: 'POST',

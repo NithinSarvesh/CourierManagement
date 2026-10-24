@@ -76,6 +76,32 @@ export function parseEvent(event) {
     if (!path.startsWith('/')) path = '/' + path;
   }
 
+  // If path was resolved to root or empty, check headers or rawUrl for original path
+  if (path === '/' || path === '') {
+    const originalUri = event.headers?.['x-forwarded-uri'] || event.headers?.['x-original-uri'] || event.headers?.['x-rewrite-original-uri'];
+    if (originalUri) {
+      try {
+        const u = new URL(originalUri, 'http://localhost');
+        if (u.pathname && !u.pathname.startsWith('/.netlify/functions')) {
+          path = u.pathname;
+        }
+      } catch (_) {
+        if (originalUri.startsWith('/') && !originalUri.startsWith('/.netlify/functions')) {
+          path = originalUri;
+        }
+      }
+    } else if (event.rawUrl) {
+      try {
+        const u = new URL(event.rawUrl);
+        if (u.pathname && !u.pathname.startsWith('/.netlify/functions')) {
+          path = u.pathname;
+        }
+      } catch (_) {}
+    }
+  }
+
+  path = '/' + path.replace(/^\/+|\/+$/g, '');
+
   // Parse body
   let body = {};
   if (event.body) {

@@ -97,7 +97,7 @@ DBMS-DA3/
 │           ├── support-tickets.mjs # Customer inquiries & staff assignment
 │           ├── services.mjs      # Shipping tiers & rate configuration
 │           └── staff.mjs         # Internal team member administration
-├── test/                         # Automated Node.js unit tests (25 passing tests)
+├── test/                         # Automated Node.js unit tests (28 passing tests)
 │   ├── api_routing.test.mjs
 │   ├── database_serialization.test.mjs
 │   └── utils.test.mjs

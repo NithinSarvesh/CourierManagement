@@ -65,19 +65,29 @@ flowchart TD
 1. Log in to [Netlify](https://app.netlify.com/).
 2. Open your existing site (e.g. `https://app.netlify.com/sites/dbmsda3`) or click **Add new site** → **Import an existing project** → **GitHub** → choose `NithinSarvesh/CourierManagement`.
 3. In **Site configuration** → **Build & deploy** → **Continuous deployment**:
-   Configure these exact monorepo parameters:
+   Configure these exact monorepo parameters (either Option A or Option B works seamlessly):
 
+#### Option A (Recommended): Scoped to DBMS-DA3
 | Setting | Value | Explanation |
 | :--- | :--- | :--- |
 | **Branch to deploy** | `main` | Production branch |
 | **Base directory** | `DBMS-DA3` | Netlify operates inside `DBMS-DA3` where `package.json` and `netlify.toml` live |
 | **Package directory** | *(Leave empty)* | Not needed when Base directory is set to `DBMS-DA3` |
-| **Build command** | `npm install` | Installs `neo4j-driver` for serverless functions |
+| **Build command** | `npm install` | Installs dependencies including `neo4j-driver` |
 | **Publish directory** | `frontend` | Publishes static UI assets from `DBMS-DA3/frontend` |
 | **Functions directory** | `netlify/functions` | Bundles Node.js serverless functions from `DBMS-DA3/netlify/functions` |
 
+#### Option B: Repository Root Base
+| Setting | Value | Explanation |
+| :--- | :--- | :--- |
+| **Branch to deploy** | `main` | Production branch |
+| **Base directory** | *(Leave empty)* | Netlify uses the repository root with root `netlify.toml` |
+| **Build command** | `npm --prefix DBMS-DA3 install` | Installs dependencies in `DBMS-DA3/` |
+| **Publish directory** | `DBMS-DA3/frontend` | Relative publish directory from repo root |
+| **Functions directory** | `DBMS-DA3/netlify/functions` | Relative functions directory from repo root |
+
 > [!NOTE]
-> `DBMS-DA3/netlify.toml` automatically configures `publish = "frontend"`, `functions = "netlify/functions"`, and routing rules (`/api/*` and `/actuator/health` -> `/.netlify/functions/api`).
+> Netlify configuration files (`netlify.toml` and `_redirects`) are present at both the repository root and inside `DBMS-DA3/` to guarantee automatic detection, bundling, and routing under either setting.
 
 ---
 
@@ -159,7 +169,7 @@ Inside `DBMS-DA3`:
 cd D:\projects\CourierManagement\DBMS-DA3
 npm test
 ```
-All 25 automated unit tests execute with `node --test` in under 1 second.
+All 28 automated unit tests execute with `node --test` in under 1 second.
 
 ### Check JavaScript Syntax
 ```powershell

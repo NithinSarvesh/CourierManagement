@@ -1,23 +1,28 @@
 # ==============================================================================
 # SwiftShip Courier Operations - Netlify Production Configuration
-# Complete Full-Stack Deployment: Frontend (Static HTML/CSS/JS) + Netlify Functions (Node.js)
+# Full-Stack Deployment: Frontend (Static HTML/CSS/JS) + Netlify Functions (Node.js)
 # ==============================================================================
 
 [build]
   publish = "frontend"
   functions = "netlify/functions"
+  command = "npm install"
+
+[functions]
+  directory = "netlify/functions"
+  node_bundler = "esbuild"
 
 # Route REST API requests directly to the Netlify Serverless Function
 [[redirects]]
   from = "/api/*"
-  to = "/.netlify/functions/api"
+  to = "/.netlify/functions/api?route=/api/:splat"
   status = 200
   force = true
 
 # Route Spring Boot style health check to the Netlify Serverless Function
 [[redirects]]
   from = "/actuator/health"
-  to = "/.netlify/functions/api"
+  to = "/.netlify/functions/api?route=/actuator/health"
   status = 200
   force = true
 

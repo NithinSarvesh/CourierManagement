@@ -85,7 +85,7 @@ async function api(path, method = 'GET', data = null) {
   if (isProductionOrigin() && isLocalEndpoint(API_BASE)) {
     updateConnStatus(false, 'Setup API (Click ⚙)');
     renderConfigNotice();
-    throw new Error(`SwiftShip is published on Netlify (${window.location.hostname}), but the production Koyeb backend URL has not been configured yet. Click ⚙ in the sidebar to configure your Koyeb HTTPS URL.`);
+    throw new Error(`SwiftShip is published on Netlify (${window.location.hostname}), but the production backend API URL has not been configured yet. Click ⚙ in the sidebar to configure your API URL.`);
   }
 
   const url = `${API_BASE}${path}`;
@@ -161,8 +161,8 @@ function renderConfigNotice() {
   banner.style.cssText = 'background:#fffbeb;border:1px solid #f59e0b;color:#92400e;padding:16px 20px;border-radius:8px;margin-bottom:20px;display:flex;align-items:center;justify-content:space-between;gap:16px;box-shadow:0 1px 3px rgba(0,0,0,0.05);';
   banner.innerHTML = `
     <div>
-      <strong style="display:block;font-size:14px;margin-bottom:4px;">⚠️ Action Required: Koyeb Backend URL Not Configured</strong>
-      <span style="font-size:12px;">SwiftShip is deployed on Netlify (<code>${window.location.hostname}</code>), but the backend URL is still pointing to localhost. Configure your Koyeb HTTPS URL in <code>config.js</code> or click Configure below.</span>
+      <strong style="display:block;font-size:14px;margin-bottom:4px;">⚠️ Action Required: Backend API URL Not Configured</strong>
+      <span style="font-size:12px;">SwiftShip is deployed on Netlify (<code>${window.location.hostname}</code>), but the backend URL is still pointing to localhost. Leave empty in <code>config.js</code> for same-origin Netlify Functions or click Configure below.</span>
     </div>
     <button type="button" class="btn primary" id="btnConfigureApiBanner" style="white-space:nowrap;padding:8px 16px;background:#d97706;border:none;color:#fff;border-radius:6px;cursor:pointer;font-weight:600;">⚙ Configure URL</button>
   `;
@@ -264,8 +264,8 @@ function renderErrorBanner(error) {
     return `
       <div class="error-banner" style="background:#fffbeb;border:1px solid #f59e0b;color:#92400e;padding:16px 20px;border-radius:8px;display:flex;align-items:center;justify-content:space-between;gap:16px;">
         <div>
-          <strong style="display:block;font-size:14px;margin-bottom:4px;">⚠️ Action Required: Koyeb Backend URL Not Configured</strong>
-          <span style="font-size:12px;">SwiftShip is deployed on Netlify (<code>${window.location.hostname}</code>), but the backend URL is still pointing to localhost. Set your deployed Koyeb HTTPS URL in <code>config.js</code> or click Configure below.</span>
+          <strong style="display:block;font-size:14px;margin-bottom:4px;">⚠️ Action Required: Backend API URL Not Configured</strong>
+          <span style="font-size:12px;">SwiftShip is deployed on Netlify (<code>${window.location.hostname}</code>), but the backend URL is still pointing to localhost. Set your API URL in <code>config.js</code> or click Configure below.</span>
         </div>
         <button type="button" class="btn primary" onclick="promptBackendUrl()" style="white-space:nowrap;padding:8px 16px;background:#d97706;border:none;color:#fff;border-radius:6px;cursor:pointer;font-weight:600;">⚙ Configure URL</button>
       </div>

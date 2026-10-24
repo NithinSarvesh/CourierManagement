@@ -34,6 +34,19 @@ test('router() returns 404 for unknown endpoints', async () => {
   assert.ok(body.error.includes('Resource not found'));
 });
 
+test('router() returns 200 service metadata for root and /api', async () => {
+  const resRoot = await router('GET', '/', {}, {});
+  assert.equal(resRoot.statusCode, 200);
+  const bodyRoot = JSON.parse(resRoot.body);
+  assert.equal(bodyRoot.status, 'UP');
+  assert.ok(bodyRoot.service.includes('SwiftShip'));
+
+  const resApi = await router('GET', '/api', {}, {});
+  assert.equal(resApi.statusCode, 200);
+  const bodyApi = JSON.parse(resApi.body);
+  assert.equal(bodyApi.status, 'UP');
+});
+
 test('router() validates required fields on customer creation', async () => {
   try {
     await router('POST', '/api/customers', {}, { email: 'test@example.com' });

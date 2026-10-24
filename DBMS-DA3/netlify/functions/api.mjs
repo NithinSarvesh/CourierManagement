@@ -23,6 +23,16 @@ import * as staff from './lib/staff.mjs';
  * Main HTTP router function
  */
 export async function router(method, path, query, body) {
+  // 0. API Root / Service Info
+  if ((path === '/' || path === '/api' || path === '') && method === 'GET') {
+    return json({
+      service: 'SwiftShip Courier Management API',
+      version: '1.0.0',
+      status: 'UP',
+      docs: '/api/health'
+    });
+  }
+
   // 1. Health checks
   if ((path === '/api/health' || path === '/actuator/health') && method === 'GET') {
     try {
@@ -434,6 +444,19 @@ export async function handler(event, context) {
       path = path.slice('/.netlify/functions/api'.length);
       if (!path.startsWith('/')) path = '/' + path;
     }
+
+    if (path === '/' || path === '') {
+      const orig = req.headers?.get?.('x-forwarded-uri') || req.headers?.get?.('x-original-uri');
+      if (orig) {
+        try {
+          const u = new URL(orig, 'http://localhost');
+          if (u.pathname && !u.pathname.startsWith('/.netlify/functions')) path = u.pathname;
+        } catch (_) {
+          if (orig.startsWith('/') && !orig.startsWith('/.netlify/functions')) path = orig;
+        }
+      }
+    }
+    path = '/' + path.replace(/^\/+|\/+$/g, '');
 
     try {
       const res = await router(method, path, query, body);
