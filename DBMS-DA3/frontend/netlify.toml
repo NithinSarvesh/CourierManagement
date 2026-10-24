@@ -3,12 +3,12 @@
 # ==============================================================================
 
 [build]
-  publish = "."
-  functions = "netlify/functions"
-  command = "npm install"
+  publish = "DBMS-DA3/frontend"
+  functions = "DBMS-DA3/frontend/netlify/functions"
+  command = "(test -d DBMS-DA3/frontend && cd DBMS-DA3/frontend && npm install) || npm install"
 
 [functions]
-  directory = "netlify/functions"
+  directory = "DBMS-DA3/frontend/netlify/functions"
   node_bundler = "esbuild"
 
 # Route REST API requests directly to the Netlify Serverless Function
