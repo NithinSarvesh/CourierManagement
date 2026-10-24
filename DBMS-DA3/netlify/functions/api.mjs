@@ -460,7 +460,8 @@ export async function handler(event, context) {
 
     try {
       const res = await router(method, path, query, body);
-      return new Response(res.body, {
+      const responseBody = (res.statusCode === 204 || res.statusCode === 304 || method === 'HEAD') ? null : res.body;
+      return new Response(responseBody, {
         status: res.statusCode,
         headers: res.headers
       });
