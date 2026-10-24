@@ -125,7 +125,7 @@ export async function router(method, path, query, body) {
     const created = await tracking.addTrackingEvent(body.trackingNumber, body);
     return json(created, 201);
   }
-  if (path === '/api/tracking' && method === 'GET') {
+  if ((path === '/api/tracking' || path === '/api/tracking/recent') && method === 'GET') {
     const res = await tracking.getRecentEvents(query.limit);
     return json(res);
   }
