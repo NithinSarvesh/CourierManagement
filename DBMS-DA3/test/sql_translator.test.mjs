@@ -97,6 +97,19 @@ test('translateSqlToCypher joins Customer and Parcel via graph relationships', (
   assert.ok(result.cypher.includes('RETURN c.name AS name, p.trackingNumber AS trackingNumber, p.weight AS weight'));
 });
 
+test('translateSqlToCypher handles reverse join from Parcel to Customer preserving graph edge direction', () => {
+  const sql = `
+    SELECT p.tracking_number, p.weight, p.status, c.name
+    FROM parcels p
+    JOIN customers c ON p.customer_id = c.customer_id
+    LIMIT 10
+  `;
+  const result = translateSqlToCypher(sql);
+  assert.ok(result.cypher.includes('MATCH (p:Parcel)'));
+  assert.ok(result.cypher.includes('MATCH (c:Customer)-[:BOOKED]->(p:Parcel)'));
+  assert.ok(result.cypher.includes('RETURN p.trackingNumber AS trackingNumber, p.weight AS weight, p.status AS status, c.name AS name'));
+});
+
 test('translateSqlToCypher rejects unknown tables with informative error', () => {
   assert.throws(
     () => translateSqlToCypher('SELECT * FROM unknown_table'),

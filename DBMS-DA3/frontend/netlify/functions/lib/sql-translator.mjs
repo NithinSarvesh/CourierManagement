@@ -255,28 +255,28 @@ const PROPERTY_NAME_MAP = {
 
 // Verified Graph Relationship Patterns between entities
 const RELATIONSHIP_PATTERNS = {
-  'Customer:Parcel': { pattern: '(c:Customer)-[:BOOKED]->(p:Parcel)', from: 'Customer', to: 'Parcel' },
-  'Parcel:Customer': { pattern: '(c:Customer)-[:BOOKED]->(p:Parcel)', from: 'Parcel', to: 'Customer' },
-  'Parcel:Branch': { pattern: '(p:Parcel)-[:DESTINED_FOR]->(b:Branch)', from: 'Parcel', to: 'Branch' },
-  'Branch:Parcel': { pattern: '(p:Parcel)-[:DESTINED_FOR]->(b:Branch)', from: 'Branch', to: 'Parcel' },
-  'Parcel:CourierService': { pattern: '(p:Parcel)-[:USES_SERVICE]->(cs:CourierService)', from: 'Parcel', to: 'CourierService' },
-  'CourierService:Parcel': { pattern: '(p:Parcel)-[:USES_SERVICE]->(cs:CourierService)', from: 'CourierService', to: 'Parcel' },
-  'DeliveryAgent:Parcel': { pattern: '(da:DeliveryAgent)-[:ASSIGNED_TO]->(p:Parcel)', from: 'DeliveryAgent', to: 'Parcel' },
-  'Parcel:DeliveryAgent': { pattern: '(da:DeliveryAgent)-[:ASSIGNED_TO]->(p:Parcel)', from: 'Parcel', to: 'DeliveryAgent' },
-  'Vehicle:DeliveryAgent': { pattern: '(v:Vehicle)-[:ASSIGNED_TO]->(da:DeliveryAgent)', from: 'Vehicle', to: 'DeliveryAgent' },
-  'DeliveryAgent:Vehicle': { pattern: '(v:Vehicle)-[:ASSIGNED_TO]->(da:DeliveryAgent)', from: 'DeliveryAgent', to: 'Vehicle' },
-  'Parcel:TrackingEvent': { pattern: '(p:Parcel)-[:HAS_TRACKING_EVENT]->(te:TrackingEvent)', from: 'Parcel', to: 'TrackingEvent' },
-  'TrackingEvent:Parcel': { pattern: '(p:Parcel)-[:HAS_TRACKING_EVENT]->(te:TrackingEvent)', from: 'TrackingEvent', to: 'Parcel' },
-  'Parcel:DeliveryAttempt': { pattern: '(p:Parcel)-[:HAS_DELIVERY_ATTEMPT]->(att:DeliveryAttempt)', from: 'Parcel', to: 'DeliveryAttempt' },
-  'DeliveryAttempt:Parcel': { pattern: '(p:Parcel)-[:HAS_DELIVERY_ATTEMPT]->(att:DeliveryAttempt)', from: 'DeliveryAttempt', to: 'Parcel' },
-  'Parcel:Payment': { pattern: '(p:Parcel)-[:HAS_PAYMENT]->(pay:Payment)', from: 'Parcel', to: 'Payment' },
-  'Payment:Parcel': { pattern: '(p:Parcel)-[:HAS_PAYMENT]->(pay:Payment)', from: 'Payment', to: 'Parcel' },
-  'Customer:SupportTicket': { pattern: '(c:Customer)-[:RAISED]->(st:SupportTicket)', from: 'Customer', to: 'SupportTicket' },
-  'SupportTicket:Customer': { pattern: '(c:Customer)-[:RAISED]->(st:SupportTicket)', from: 'SupportTicket', to: 'Customer' },
-  'SupportTicket:Parcel': { pattern: '(st:SupportTicket)-[:ABOUT_PARCEL]->(p:Parcel)', from: 'SupportTicket', to: 'Parcel' },
-  'Parcel:SupportTicket': { pattern: '(st:SupportTicket)-[:ABOUT_PARCEL]->(p:Parcel)', from: 'Parcel', to: 'SupportTicket' },
-  'Staff:Branch': { pattern: '(s:Staff)-[:WORKS_AT]->(b:Branch)', from: 'Staff', to: 'Branch' },
-  'Branch:Staff': { pattern: '(s:Staff)-[:WORKS_AT]->(b:Branch)', from: 'Branch', to: 'Staff' }
+  'Customer:Parcel': { relType: 'BOOKED', source: 'Customer', target: 'Parcel' },
+  'Parcel:Customer': { relType: 'BOOKED', source: 'Customer', target: 'Parcel' },
+  'Parcel:Branch': { relType: 'DESTINED_FOR', source: 'Parcel', target: 'Branch' },
+  'Branch:Parcel': { relType: 'DESTINED_FOR', source: 'Parcel', target: 'Branch' },
+  'Parcel:CourierService': { relType: 'USES_SERVICE', source: 'Parcel', target: 'CourierService' },
+  'CourierService:Parcel': { relType: 'USES_SERVICE', source: 'Parcel', target: 'CourierService' },
+  'DeliveryAgent:Parcel': { relType: 'ASSIGNED_TO', source: 'DeliveryAgent', target: 'Parcel' },
+  'Parcel:DeliveryAgent': { relType: 'ASSIGNED_TO', source: 'DeliveryAgent', target: 'Parcel' },
+  'Vehicle:DeliveryAgent': { relType: 'ASSIGNED_TO', source: 'Vehicle', target: 'DeliveryAgent' },
+  'DeliveryAgent:Vehicle': { relType: 'ASSIGNED_TO', source: 'Vehicle', target: 'DeliveryAgent' },
+  'Parcel:TrackingEvent': { relType: 'HAS_TRACKING_EVENT', source: 'Parcel', target: 'TrackingEvent' },
+  'TrackingEvent:Parcel': { relType: 'HAS_TRACKING_EVENT', source: 'Parcel', target: 'TrackingEvent' },
+  'Parcel:DeliveryAttempt': { relType: 'HAS_DELIVERY_ATTEMPT', source: 'Parcel', target: 'DeliveryAttempt' },
+  'DeliveryAttempt:Parcel': { relType: 'HAS_DELIVERY_ATTEMPT', source: 'Parcel', target: 'DeliveryAttempt' },
+  'Parcel:Payment': { relType: 'HAS_PAYMENT', source: 'Parcel', target: 'Payment' },
+  'Payment:Parcel': { relType: 'HAS_PAYMENT', source: 'Parcel', target: 'Payment' },
+  'Customer:SupportTicket': { relType: 'RAISED', source: 'Customer', target: 'SupportTicket' },
+  'SupportTicket:Customer': { relType: 'RAISED', source: 'Customer', target: 'SupportTicket' },
+  'SupportTicket:Parcel': { relType: 'ABOUT_PARCEL', source: 'SupportTicket', target: 'Parcel' },
+  'Parcel:SupportTicket': { relType: 'ABOUT_PARCEL', source: 'SupportTicket', target: 'Parcel' },
+  'Staff:Branch': { relType: 'WORKS_AT', source: 'Staff', target: 'Branch' },
+  'Branch:Staff': { relType: 'WORKS_AT', source: 'Staff', target: 'Branch' }
 };
 
 export function resolveTableName(raw) {
@@ -451,14 +451,10 @@ export function translateSqlToCypher(sql) {
       }
 
       // Substitute actual query aliases into pattern
-      const fromAlias = relInfo.from === canonicalBase ? baseAlias : jt.alias;
-      const toAlias = relInfo.to === canonicalBase ? baseAlias : jt.alias;
+      const srcAlias = relInfo.source === canonicalBase ? baseAlias : jt.alias;
+      const tgtAlias = relInfo.target === canonicalBase ? baseAlias : jt.alias;
 
-      // Extract rel type e.g. :BOOKED
-      const relTypeMatch = relInfo.pattern.match(/-\[:([A-Z_]+)\]->/);
-      const relType = relTypeMatch ? relTypeMatch[1] : 'RELATED_TO';
-
-      matchClauses.push(`MATCH (${fromAlias}:${relInfo.from})-[:${relType}]->(${toAlias}:${relInfo.to})`);
+      matchClauses.push(`MATCH (${srcAlias}:${relInfo.source})-[:${relInfo.relType}]->(${tgtAlias}:${relInfo.target})`);
     }
   }
 
