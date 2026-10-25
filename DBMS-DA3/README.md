@@ -64,6 +64,37 @@ The reference Spring Boot backend remains fully functional inside `DBMS-DA3/back
 
 ---
 
+## 🛠️ Advanced Database Tools & Exploration
+
+The console provides dedicated DBMS tools designed for database engineering and academic coursework:
+
+1. **Interactive SQL Query Builder (`sqlbuilder`)**:
+   - Visual relational query generator based on logistics conceptual schemas (parcels, customers, branches, agents, vehicles, tracking, payments, tickets, staff).
+   - Dynamic `SELECT`, `JOIN` (INNER, LEFT, RIGHT), `WHERE`, `GROUP BY`, `HAVING`, `ORDER BY`, and `LIMIT` construction.
+   - Formatted ANSI SQL output with live syntax highlighting, clipboard copy, and `.sql` file download.
+   - Relational Algebra projection preview demonstrating relational operators ($\pi, \sigma, \bowtie, \gamma$).
+   - 5 analytical logistics presets for instant scenario analysis.
+   - *Explicit educational disclosure badge highlighting relational preview mode vs. cloud Neo4j graph execution.*
+
+2. **Oracle PL/SQL Laboratory (`plsql`)**:
+   - Interactive procedural database lab containing real, executable PL/SQL programs:
+     - **Triggers**: `trg_parcel_status_audit` (autonomous audit logging), `trg_validate_parcel_pricing` (pricing floor validation), `trg_prevent_unassigned_dispatch` (dispatch integrity exception).
+     - **Explicit Cursors**: `cur_overdue_deliveries` (parameterized cursor lifecycle), `cur_branch_manifest_for_loop` (driver manifest generation), `cur_agent_performance_eval` (pessimistic row locking with `FOR UPDATE` and `CURRENT OF`).
+     - **Implicit Cursor Attributes**: Practical demonstrations of `SQL%ROWCOUNT`, `SQL%FOUND`, `SQL%NOTFOUND`, and `SQL%ISOPEN`.
+     - **Packages & Autonomous Transactions**: `pkg_courier_operations` with procedures, custom exception binding, and independent commit logging (`PRAGMA AUTONOMOUS_TRANSACTION`).
+   - "Run DBMS Simulation" button generates realistic `DBMS_OUTPUT.PUT_LINE` terminal output buffer streams.
+   - One-click clipboard copy and `.pls` file download.
+
+3. **Live Neo4j Graph Explorer (`graph`)**:
+   - Real-time graph visualization engine powered by HTML5 Canvas force simulation (zero external library or CDN dependencies).
+   - Queries live cloud data via `GET /api/graph/overview` with configurable limits (`nodeLimit`, `relationshipLimit`), category filters, and search queries.
+   - Color-coded entity nodes with captions and directed relationship labels (`BOOKED`, `ASSIGNED_TO`, `DESTINED_FOR`, etc.).
+   - Fluid physics simulation (Coulomb repulsion, Hooke spring attraction, centering gravity, damping).
+   - Interactive panning, zooming, node dragging, and slide-in Node Inspector Drawer.
+   - Graceful empty-state handling guiding users to seed data via the booking interfaces when 0 nodes are stored.
+
+---
+
 ## 📁 Directory Structure
 
 ```text
@@ -96,10 +127,12 @@ DBMS-DA3/
 │           ├── payments.mjs      # Payment processing & financial summaries
 │           ├── support-tickets.mjs # Customer inquiries & staff assignment
 │           ├── services.mjs      # Shipping tiers & rate configuration
-│           └── staff.mjs         # Internal team member administration
-├── test/                         # Automated Node.js unit tests (28 passing tests)
+│           ├── staff.mjs         # Internal team member administration
+│           └── graph.mjs         # Live Neo4j graph nodes, edges & structural stats
+├── test/                         # Automated Node.js unit tests (30 passing tests)
 │   ├── api_routing.test.mjs
 │   ├── database_serialization.test.mjs
+│   ├── graph.test.mjs
 │   └── utils.test.mjs
 └── backend/                      # Reference Java 21 / Spring Boot 3.3.5 backend
     ├── pom.xml                   # Maven dependencies (Java 21, Spring Boot, Neo4j)

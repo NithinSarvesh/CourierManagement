@@ -1,33 +1,179 @@
 <!doctype html>
-<html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>SwiftShip · Courier Console</title><link rel="stylesheet" href="styles.css"></head>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width,initial-scale=1">
+  <title>SwiftShip · DBMS Operations & Analytics Console</title>
+  <link rel="stylesheet" href="styles.css">
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=DM+Sans:ital,opsz,wght@0,9..40,400..700;1,9..40,400..700&family=JetBrains+Mono:wght@400;500;600&family=Manrope:wght@500;600;700;800&display=swap" rel="stylesheet">
+</head>
 <body>
+<div class="sidebar-overlay" id="sidebarOverlay" aria-hidden="true"></div>
 <div class="app">
-<aside class="sidebar" id="sidebar">
- <div class="brand"><div class="brandmark">↗</div><div><b>swiftship</b><small>COURIER OPERATIONS</small></div></div>
- <div class="workspace" id="connWorkspace" title="Click to view API endpoint" style="cursor:pointer"><span class="dot checking" id="connDot"></span> <span id="connStatus">Checking backend...</span> <span class="chev">⚙</span></div>
- <div class="navlabel">WORKSPACE</div><nav id="nav">
- <button class="navitem active" data-page="dashboard"><span>▦</span> Overview</button>
- <button class="navitem" data-page="parcels"><span>▣</span> Parcels <i id="navParcelCount">—</i></button>
- <button class="navitem" data-page="tracking"><span>⌖</span> Tracking</button>
- <button class="navitem" data-page="customers"><span>♙</span> Customers</button>
- <button class="navitem" data-page="agents"><span>♧</span> Delivery agents</button>
- <button class="navitem" data-page="vehicles"><span>▰</span> Fleet</button>
- <button class="navitem" data-page="branches"><span>⌂</span> Branches</button>
- <button class="navitem" data-page="routes"><span>⌁</span> Routes</button>
- <div class="navlabel">MANAGEMENT</div>
- <button class="navitem" data-page="payments"><span>＄</span> Payments</button>
- <button class="navitem" data-page="support"><span>☏</span> Support tickets</button>
- <button class="navitem" data-page="services"><span>◇</span> Services</button>
- <button class="navitem" data-page="staff"><span>♙</span> Staff & access</button>
- </nav>
- <div class="sidebarbottom"><div class="helpbox"><div class="helpicon">?</div><b>Need a hand?</b><p>Spring Boot Neo4j REST API.</p><a href="#" onclick="toast('API: ' + API_BASE);return false">Endpoint info ↗</a></div><div class="profile"><div class="avatar">AS</div><div><b>Alex Smith</b><small>Operations admin</small></div><span>•••</span></div></div>
-</aside>
-<main class="main">
-<header class="topbar"><button class="hamb" id="hamb">☰</button><div class="crumb">Workspace <span>/</span> <b id="crumb">Overview</b></div><div class="topactions"><div class="search"><span>⌕</span><input id="globalSearch" placeholder="Search anything..."><kbd>⌘ K</kbd></div><button class="iconbtn" title="Refresh data" onclick="refreshCurrentPage()">♧<em></em></button><div class="topavatar">AS</div></div></header>
-<section class="content" id="content"></section>
-<footer>SwiftShip Console <span>•</span> Connected to Spring Boot Neo4j REST API · <span id="footerApiBase">http://localhost:8082</span></footer>
-</main></div>
-<div class="toast" id="toast"></div>
-<div class="modalback" id="modalback"><div class="modal" id="modalContainer"><div class="modalhead"><h3 id="modalTitle">Create record</h3><button type="button" onclick="closeModal()">×</button></div><div id="modalAlert" style="display:none;margin-bottom:12px;padding:10px 12px;border-radius:6px;font-size:11px;background:#fdf2f2;color:#9b1c1c;border:1px solid #f8b4b4;"></div><form id="modalForm"><div id="modalFields" class="formgrid"></div><div class="modalfoot" id="modalFoot"><button type="button" class="btn ghost" onclick="closeModal()">Cancel</button><button type="submit" class="btn primary" id="modalSubmitBtn">Save record</button></div></form><div id="modalCustomContent" style="display:none"></div></div></div>
+  <aside class="sidebar" id="sidebar">
+    <div class="brand">
+      <div class="brandmark">↗</div>
+      <div class="brandtext">
+        <b>swiftship</b>
+        <small>DBMS OPERATIONS</small>
+      </div>
+    </div>
+
+    <div class="workspace" id="connWorkspace" title="Click to inspect or configure API endpoint" style="cursor:pointer">
+      <span class="dot checking" id="connDot"></span>
+      <span class="workspace-text" id="connStatus">Checking backend...</span>
+      <span class="chev">⚙</span>
+    </div>
+
+    <nav id="nav">
+      <div class="navlabel">OPERATIONS</div>
+      <button class="navitem active" data-page="dashboard" title="Operations Overview">
+        <span class="navicon">▦</span>
+        <span class="navtitle">Overview</span>
+      </button>
+      <button class="navitem" data-page="parcels" title="Parcels & Shipments">
+        <span class="navicon">▣</span>
+        <span class="navtitle">Parcels</span>
+        <i id="navParcelCount">—</i>
+      </button>
+      <button class="navitem" data-page="tracking" title="Tracking Journey">
+        <span class="navicon">⌖</span>
+        <span class="navtitle">Tracking</span>
+      </button>
+      <button class="navitem" data-page="customers" title="Customer Profiles">
+        <span class="navicon">♙</span>
+        <span class="navtitle">Customers</span>
+      </button>
+      <button class="navitem" data-page="agents" title="Delivery Agents">
+        <span class="navicon">♧</span>
+        <span class="navtitle">Delivery Agents</span>
+      </button>
+      <button class="navitem" data-page="vehicles" title="Fleet & Vehicles">
+        <span class="navicon">▰</span>
+        <span class="navtitle">Fleet</span>
+      </button>
+      <button class="navitem" data-page="branches" title="Branch Network">
+        <span class="navicon">⌂</span>
+        <span class="navtitle">Branches</span>
+      </button>
+      <button class="navitem" data-page="routes" title="Lanes & Routes">
+        <span class="navicon">⌁</span>
+        <span class="navtitle">Routes</span>
+      </button>
+
+      <div class="navlabel">MANAGEMENT</div>
+      <button class="navitem" data-page="payments" title="Financial Transactions">
+        <span class="navicon">＄</span>
+        <span class="navtitle">Payments</span>
+      </button>
+      <button class="navitem" data-page="support" title="Support Tickets">
+        <span class="navicon">☏</span>
+        <span class="navtitle">Support Tickets</span>
+      </button>
+      <button class="navitem" data-page="services" title="Courier Services">
+        <span class="navicon">◇</span>
+        <span class="navtitle">Services</span>
+      </button>
+      <button class="navitem" data-page="staff" title="Staff & Access">
+        <span class="navicon">♟</span>
+        <span class="navtitle">Staff & Access</span>
+      </button>
+
+      <div class="navlabel">DATABASE TOOLS</div>
+      <button class="navitem navitem-db" data-page="sqlbuilder" title="Interactive SQL Query Builder">
+        <span class="navicon">🗄</span>
+        <span class="navtitle">SQL Builder</span>
+        <span class="tool-tag">SQL</span>
+      </button>
+      <button class="navitem navitem-db" data-page="plsql" title="Oracle PL/SQL Procedures & Triggers Lab">
+        <span class="navicon">⚡</span>
+        <span class="navtitle">PL/SQL Lab</span>
+        <span class="tool-tag">PL/SQL</span>
+      </button>
+      <button class="navitem navitem-db" data-page="graph" title="Live Neo4j AuraDB Graph Explorer">
+        <span class="navicon">🕸</span>
+        <span class="navtitle">Graph Explorer</span>
+        <span class="tool-tag live-tag">LIVE</span>
+      </button>
+    </nav>
+
+    <div class="sidebarbottom">
+      <div class="db-info-card">
+        <div class="db-info-header">
+          <span class="db-icon">⚡</span>
+          <div>
+            <b>Neo4j AuraDB</b>
+            <small id="dbInfoStatus">Cloud Graph Active</small>
+          </div>
+        </div>
+        <p>Real-time graph relationships & serverless API on Netlify Free.</p>
+        <button type="button" class="db-info-btn" onclick="go('graph')">Open Live Graph ↗</button>
+      </div>
+    </div>
+  </aside>
+
+  <main class="main">
+    <header class="topbar">
+      <div class="topbar-left">
+        <button class="hamb" id="hamb" aria-label="Toggle Navigation Sidebar" title="Toggle Sidebar (Expand/Compact)">
+          <span class="hamb-line"></span>
+          <span class="hamb-line"></span>
+          <span class="hamb-line"></span>
+        </button>
+        <div class="crumb">
+          <span class="crumb-root">SwiftShip DBMS</span>
+          <span class="crumb-sep">/</span>
+          <b id="crumb">Overview</b>
+        </div>
+      </div>
+
+      <div class="topactions">
+        <div class="search">
+          <span class="search-icon">⌕</span>
+          <input id="globalSearch" placeholder="Search tracking #, customer..." autocomplete="off">
+          <kbd>⌘ K</kbd>
+        </div>
+        <button class="iconbtn" title="Refresh Current View" onclick="refreshCurrentPage()">
+          ↻
+        </button>
+        <div class="top-status-badge" id="topStatusBadge" title="Database connectivity status">
+          <span class="status-indicator"></span>
+          <span class="status-label" id="topStatusLabel">AuraDB Online</span>
+        </div>
+      </div>
+    </header>
+
+    <section class="content" id="content" role="main"></section>
+
+    <footer>
+      SwiftShip DBMS Console <span>•</span> Cloud Graph Architecture powered by Neo4j AuraDB & Netlify Serverless Functions · <span id="footerApiBase">/api</span>
+    </footer>
+  </main>
+</div>
+
+<div class="toast" id="toast" role="status" aria-live="polite"></div>
+
+<div class="modalback" id="modalback">
+  <div class="modal" id="modalContainer">
+    <div class="modalhead">
+      <h3 id="modalTitle">Create record</h3>
+      <button type="button" onclick="closeModal()" aria-label="Close modal">×</button>
+    </div>
+    <div id="modalAlert" style="display:none;margin-bottom:12px;padding:10px 12px;border-radius:6px;font-size:11px;background:#fdf2f2;color:#9b1c1c;border:1px solid #f8b4b4;"></div>
+    <form id="modalForm">
+      <div id="modalFields" class="formgrid"></div>
+      <div class="modalfoot" id="modalFoot">
+        <button type="button" class="btn ghost" onclick="closeModal()">Cancel</button>
+        <button type="submit" class="btn primary" id="modalSubmitBtn">Save record</button>
+      </div>
+    </form>
+    <div id="modalCustomContent" style="display:none"></div>
+  </div>
+</div>
+
 <script src="config.js"></script>
-<script src="app.js"></script></body></html>
+<script src="app.js"></script>
+</body>
+</html>

@@ -18,6 +18,7 @@ import * as payments from './lib/payments.mjs';
 import * as tickets from './lib/support-tickets.mjs';
 import * as services from './lib/services.mjs';
 import * as staff from './lib/staff.mjs';
+import { getGraphOverview } from './lib/graph.mjs';
 
 /**
  * Main HTTP router function
@@ -50,6 +51,12 @@ export async function router(method, path, query, body) {
   if ((path === '/api/dashboard' || path === '/api/dashboard/summary') && method === 'GET') {
     const summary = await getDashboardSummary();
     return json(summary);
+  }
+
+  // 2b. Live Graph Explorer
+  if ((path === '/api/graph/overview' || path === '/api/graph') && method === 'GET') {
+    const graphData = await getGraphOverview(query);
+    return json(graphData);
   }
 
   // 3. Customers

@@ -133,22 +133,31 @@ async function api(path, method = 'GET', data = null) {
   return await res.json();
 }
 
-// Update connection status in sidebar
+// Update connection status in sidebar and topbar
 function updateConnStatus(isOnline, customText) {
   const dot = $('#connDot');
   const txt = $('#connStatus');
-  if (!dot || !txt) return;
+  const topBadge = $('#topStatusBadge');
+  const topLabel = $('#topStatusLabel');
+  const dbInfo = $('#dbInfoStatus');
+
   if (customText) {
-    dot.className = 'dot checking';
-    txt.textContent = customText;
+    if (dot) dot.className = 'dot checking';
+    if (txt) txt.textContent = customText;
+    if (topLabel) topLabel.textContent = customText;
+    if (dbInfo) dbInfo.textContent = customText;
     return;
   }
   if (isOnline) {
-    dot.className = 'dot online';
-    txt.textContent = 'Connected';
+    if (dot) dot.className = 'dot online';
+    if (txt) txt.textContent = 'Connected';
+    if (topLabel) topLabel.textContent = 'AuraDB Online';
+    if (dbInfo) dbInfo.textContent = 'Cloud Graph Active';
   } else {
-    dot.className = 'dot offline';
-    txt.textContent = 'Offline';
+    if (dot) dot.className = 'dot offline';
+    if (txt) txt.textContent = 'Offline';
+    if (topLabel) topLabel.textContent = 'Backend Offline';
+    if (dbInfo) dbInfo.textContent = 'Disconnected';
   }
 }
 
@@ -243,7 +252,10 @@ const pageMeta = {
   payments: { title: 'Payments', desc: 'Financial transactions, revenue summaries, and payment methods.' },
   support: { title: 'Support tickets', desc: 'Customer support tickets, inquiry tracking, and resolution.' },
   services: { title: 'Services', desc: 'Shipping products, base pricing, and delivery commitments.' },
-  staff: { title: 'Staff & access', desc: 'Manage administrative and branch operational team members.' }
+  staff: { title: 'Staff & access', desc: 'Manage administrative and branch operational team members.' },
+  sqlbuilder: { title: 'SQL Query Builder', desc: 'Interactive SQL query generator for relational logistics schema with presets and relational algebra preview.' },
+  plsql: { title: 'PL/SQL Lab', desc: 'Interactive Oracle PL/SQL reference lab with Triggers, Explicit Cursors, Cursor Attributes, and Packages.' },
+  graph: { title: 'Live Graph Explorer', desc: 'Interactive force-directed graph visualization of live Neo4j AuraDB nodes and relationships.' }
 };
 
 function pageHead(title, desc, btnText, btnAction) {
@@ -289,6 +301,7 @@ async function go(p) {
   $('#crumb').textContent = meta.title;
   $$('.navitem').forEach(b => b.classList.toggle('active', b.dataset.page === p));
   $('#sidebar')?.classList.remove('open');
+  $('#sidebarOverlay')?.classList.remove('active');
   window.scrollTo(0, 0);
 
   const container = $('#content');
@@ -332,6 +345,18 @@ async function go(p) {
       case 'staff':
         container.innerHTML = await renderStaff();
         break;
+      case 'sqlbuilder':
+        container.innerHTML = await renderSqlBuilder();
+        initSqlBuilderEvents();
+        break;
+      case 'plsql':
+        container.innerHTML = await renderPlsqlLab();
+        initPlsqlLabEvents();
+        break;
+      case 'graph':
+        container.innerHTML = await renderGraphExplorer();
+        initGraphExplorerEvents();
+        break;
       default:
         container.innerHTML = await renderDashboard();
     }
@@ -370,7 +395,7 @@ async function renderDashboard() {
   const recentEvents = data.recentTrackingEvents || [];
 
   return `
-    ${pageHead('Good afternoon, Alex', 'Here is what is happening across your courier network today.', 'Book parcel', 'openBookParcelModal()')}
+    ${pageHead('Operations Overview', 'Real-time logistics monitoring, parcel tracking, fleet dispatch, and database operations.', 'Book parcel', 'openBookParcelModal()')}
     
     <div class="stats">
       <div class="stat">
@@ -2011,17 +2036,1740 @@ function formatDuration(minutes) {
   return `${mins}m`;
 }
 
+// ==============================================================================
+// DATABASE TOOLS: SQL Query Builder
+// ==============================================================================
+
+const SQL_SCHEMA = {
+  parcels: {
+    label: 'Parcels (Shipments)',
+    alias: 'p',
+    columns: [
+      { name: 'parcel_id', type: 'VARCHAR(36)', pk: true },
+      { name: 'tracking_number', type: 'VARCHAR(20)' },
+      { name: 'customer_id', type: 'VARCHAR(36)', fk: 'customers.customer_id' },
+      { name: 'origin_branch_id', type: 'VARCHAR(36)', fk: 'branches.branch_id' },
+      { name: 'dest_branch_id', type: 'VARCHAR(36)', fk: 'branches.branch_id' },
+      { name: 'service_id', type: 'VARCHAR(36)', fk: 'courier_services.service_id' },
+      { name: 'delivery_agent_id', type: 'VARCHAR(36)', fk: 'delivery_agents.agent_id' },
+      { name: 'weight_kg', type: 'DECIMAL(6,2)' },
+      { name: 'status', type: 'VARCHAR(25)' },
+      { name: 'created_at', type: 'TIMESTAMP' }
+    ]
+  },
+  customers: {
+    label: 'Customers',
+    alias: 'c',
+    columns: [
+      { name: 'customer_id', type: 'VARCHAR(36)', pk: true },
+      { name: 'full_name', type: 'VARCHAR(100)' },
+      { name: 'email', type: 'VARCHAR(120)' },
+      { name: 'phone_number', type: 'VARCHAR(20)' },
+      { name: 'city', type: 'VARCHAR(50)' },
+      { name: 'address', type: 'VARCHAR(255)' },
+      { name: 'created_at', type: 'TIMESTAMP' }
+    ]
+  },
+  branches: {
+    label: 'Branches (Hubs)',
+    alias: 'b',
+    columns: [
+      { name: 'branch_id', type: 'VARCHAR(36)', pk: true },
+      { name: 'branch_name', type: 'VARCHAR(80)' },
+      { name: 'city', type: 'VARCHAR(50)' },
+      { name: 'state', type: 'VARCHAR(50)' },
+      { name: 'pincode', type: 'VARCHAR(10)' },
+      { name: 'manager_name', type: 'VARCHAR(100)' },
+      { name: 'phone', type: 'VARCHAR(20)' }
+    ]
+  },
+  delivery_agents: {
+    label: 'Delivery Agents',
+    alias: 'da',
+    columns: [
+      { name: 'agent_id', type: 'VARCHAR(36)', pk: true },
+      { name: 'full_name', type: 'VARCHAR(100)' },
+      { name: 'phone_number', type: 'VARCHAR(20)' },
+      { name: 'vehicle_id', type: 'VARCHAR(36)', fk: 'vehicles.vehicle_id' },
+      { name: 'assigned_branch_id', type: 'VARCHAR(36)', fk: 'branches.branch_id' },
+      { name: 'active_status', type: 'VARCHAR(20)' }
+    ]
+  },
+  vehicles: {
+    label: 'Fleet Vehicles',
+    alias: 'v',
+    columns: [
+      { name: 'vehicle_id', type: 'VARCHAR(36)', pk: true },
+      { name: 'registration_number', type: 'VARCHAR(30)' },
+      { name: 'vehicle_type', type: 'VARCHAR(20)' },
+      { name: 'capacity_kg', type: 'DECIMAL(8,2)' },
+      { name: 'active_status', type: 'VARCHAR(20)' }
+    ]
+  },
+  courier_services: {
+    label: 'Courier Services',
+    alias: 'cs',
+    columns: [
+      { name: 'service_id', type: 'VARCHAR(36)', pk: true },
+      { name: 'service_name', type: 'VARCHAR(60)' },
+      { name: 'base_rate', type: 'DECIMAL(8,2)' },
+      { name: 'per_kg_rate', type: 'DECIMAL(8,2)' },
+      { name: 'est_delivery_days', type: 'INT' }
+    ]
+  },
+  tracking_events: {
+    label: 'Tracking Events',
+    alias: 'te',
+    columns: [
+      { name: 'event_id', type: 'VARCHAR(36)', pk: true },
+      { name: 'parcel_id', type: 'VARCHAR(36)', fk: 'parcels.parcel_id' },
+      { name: 'event_status', type: 'VARCHAR(30)' },
+      { name: 'location', type: 'VARCHAR(100)' },
+      { name: 'event_timestamp', type: 'TIMESTAMP' },
+      { name: 'remarks', type: 'VARCHAR(255)' }
+    ]
+  },
+  payments: {
+    label: 'Payments',
+    alias: 'pay',
+    columns: [
+      { name: 'payment_id', type: 'VARCHAR(36)', pk: true },
+      { name: 'parcel_id', type: 'VARCHAR(36)', fk: 'parcels.parcel_id' },
+      { name: 'amount', type: 'DECIMAL(10,2)' },
+      { name: 'payment_method', type: 'VARCHAR(25)' },
+      { name: 'payment_status', type: 'VARCHAR(25)' },
+      { name: 'transaction_time', type: 'TIMESTAMP' }
+    ]
+  },
+  support_tickets: {
+    label: 'Support Tickets',
+    alias: 'st',
+    columns: [
+      { name: 'ticket_id', type: 'VARCHAR(36)', pk: true },
+      { name: 'customer_id', type: 'VARCHAR(36)', fk: 'customers.customer_id' },
+      { name: 'parcel_id', type: 'VARCHAR(36)', fk: 'parcels.parcel_id' },
+      { name: 'subject', type: 'VARCHAR(120)' },
+      { name: 'priority', type: 'VARCHAR(20)' },
+      { name: 'status', type: 'VARCHAR(20)' },
+      { name: 'created_at', type: 'TIMESTAMP' }
+    ]
+  },
+  staff: {
+    label: 'Staff Members',
+    alias: 's',
+    columns: [
+      { name: 'staff_id', type: 'VARCHAR(36)', pk: true },
+      { name: 'full_name', type: 'VARCHAR(100)' },
+      { name: 'email', type: 'VARCHAR(120)' },
+      { name: 'role', type: 'VARCHAR(30)' },
+      { name: 'branch_id', type: 'VARCHAR(36)', fk: 'branches.branch_id' },
+      { name: 'status', type: 'VARCHAR(20)' }
+    ]
+  }
+};
+
+const SQL_PRESETS = [
+  {
+    title: 'Pending Deliveries by Destination Hub',
+    desc: 'Joins parcels with destination branches to identify in-transit distribution workload.',
+    table: 'parcels',
+    columns: ['p.tracking_number', 'p.status', 'b.branch_name AS destination_hub', 'p.weight_kg', 'p.created_at'],
+    joins: [
+      { type: 'INNER JOIN', table: 'branches', onLeft: 'p.dest_branch_id', onRight: 'b.branch_id' }
+    ],
+    wheres: [
+      { column: 'p.status', operator: '=', value: "'IN_TRANSIT'" }
+    ],
+    groupBy: [],
+    having: '',
+    orderBy: 'p.created_at',
+    orderDir: 'DESC',
+    limit: 25,
+    relAlgebra: 'π(tracking_number, status, branch_name, weight_kg) [ σ(status = \'IN_TRANSIT\') (parcels ⨝_{dest_branch_id = branch_id} branches) ]'
+  },
+  {
+    title: 'High-Value Delayed Parcels with Paid Invoices',
+    desc: 'Filters paid consignments above ₹1,500 that require priority transit monitoring.',
+    table: 'parcels',
+    columns: ['p.tracking_number', 'c.full_name AS customer_name', 'pay.amount AS invoice_amount', 'pay.payment_status', 'p.status AS shipment_status'],
+    joins: [
+      { type: 'INNER JOIN', table: 'customers', onLeft: 'p.customer_id', onRight: 'c.customer_id' },
+      { type: 'INNER JOIN', table: 'payments', onLeft: 'p.parcel_id', onRight: 'pay.parcel_id' }
+    ],
+    wheres: [
+      { column: 'pay.payment_status', operator: '=', value: "'PAID'" },
+      { column: 'pay.amount', operator: '>=', value: '1500.00' }
+    ],
+    groupBy: [],
+    having: '',
+    orderBy: 'pay.amount',
+    orderDir: 'DESC',
+    limit: 25,
+    relAlgebra: 'π(tracking_number, full_name, amount) [ σ(payment_status = \'PAID\' ∧ amount ≥ 1500) (parcels ⨝ customers ⨝ payments) ]'
+  },
+  {
+    title: 'Delivery Agent Workload & Run Sheets',
+    desc: 'Aggregates current assignment volume per active delivery personnel and fleet vehicle.',
+    table: 'delivery_agents',
+    columns: ['da.agent_id', 'da.full_name AS agent_name', 'da.phone_number', 'COUNT(p.parcel_id) AS assigned_shipments', 'v.registration_number AS vehicle_plate'],
+    joins: [
+      { type: 'LEFT OUTER JOIN', table: 'parcels', onLeft: 'da.agent_id', onRight: 'p.delivery_agent_id' },
+      { type: 'LEFT OUTER JOIN', table: 'vehicles', onLeft: 'da.vehicle_id', onRight: 'v.vehicle_id' }
+    ],
+    wheres: [
+      { column: 'da.active_status', operator: '=', value: "'ACTIVE'" }
+    ],
+    groupBy: ['da.agent_id', 'da.full_name', 'da.phone_number', 'v.registration_number'],
+    having: '',
+    orderBy: 'assigned_shipments',
+    orderDir: 'DESC',
+    limit: 25,
+    relAlgebra: 'γ(agent_name, registration_number; COUNT(parcel_id) → assigned_shipments) [ σ(active_status = \'ACTIVE\') (delivery_agents ⟕ parcels ⟕ vehicles) ]'
+  },
+  {
+    title: 'Customer Lifetime Spend & Order Concentration',
+    desc: 'Computes total freight charges and booking frequency for high-volume accounts.',
+    table: 'customers',
+    columns: ['c.customer_id', 'c.full_name', 'c.city', 'COUNT(p.parcel_id) AS total_orders', 'COALESCE(SUM(pay.amount), 0.00) AS total_freight_expenditure'],
+    joins: [
+      { type: 'INNER JOIN', table: 'parcels', onLeft: 'c.customer_id', onRight: 'p.customer_id' },
+      { type: 'LEFT OUTER JOIN', table: 'payments', onLeft: 'p.parcel_id', onRight: 'pay.parcel_id' }
+    ],
+    wheres: [],
+    groupBy: ['c.customer_id', 'c.full_name', 'c.city'],
+    having: 'COUNT(p.parcel_id) >= 2',
+    orderBy: 'total_freight_expenditure',
+    orderDir: 'DESC',
+    limit: 25,
+    relAlgebra: 'π(customer_id, full_name, total_orders, total_freight) [ σ(COUNT ≥ 2) (γ(customer_id; COUNT(parcel_id), SUM(amount)) (customers ⨝ parcels ⟕ payments)) ]'
+  },
+  {
+    title: 'Critical Open Support Escalations',
+    desc: 'Extracts urgent unresolved customer complaints linked to tracking numbers.',
+    table: 'support_tickets',
+    columns: ['st.ticket_id', 'st.subject', 'st.priority', 'st.status', 'c.full_name AS requester_name', 'c.phone_number', 'p.tracking_number'],
+    joins: [
+      { type: 'INNER JOIN', table: 'customers', onLeft: 'st.customer_id', onRight: 'c.customer_id' },
+      { type: 'LEFT OUTER JOIN', table: 'parcels', onLeft: 'st.parcel_id', onRight: 'p.parcel_id' }
+    ],
+    wheres: [
+      { column: 'st.status', operator: '=', value: "'OPEN'" },
+      { column: 'st.priority', operator: '=', value: "'CRITICAL'" }
+    ],
+    groupBy: [],
+    having: '',
+    orderBy: 'st.created_at',
+    orderDir: 'ASC',
+    limit: 25,
+    relAlgebra: 'π(ticket_id, subject, priority, full_name, tracking_number) [ σ(status=\'OPEN\' ∧ priority=\'CRITICAL\') (support_tickets ⨝ customers ⟕ parcels) ]'
+  }
+];
+
+let sqlBuilderState = {
+  activePresetIndex: 0,
+  table: 'parcels',
+  columns: [...SQL_PRESETS[0].columns],
+  joins: JSON.parse(JSON.stringify(SQL_PRESETS[0].joins)),
+  wheres: JSON.parse(JSON.stringify(SQL_PRESETS[0].wheres)),
+  groupBy: [...SQL_PRESETS[0].groupBy],
+  having: SQL_PRESETS[0].having,
+  orderBy: SQL_PRESETS[0].orderBy,
+  orderDir: SQL_PRESETS[0].orderDir,
+  limit: SQL_PRESETS[0].limit,
+  relAlgebra: SQL_PRESETS[0].relAlgebra
+};
+
+function generateSqlString(state) {
+  const tMeta = SQL_SCHEMA[state.table] || { alias: 't' };
+  const alias = tMeta.alias || 't';
+  
+  let sql = 'SELECT\n';
+  if (state.columns.length === 0) {
+    sql += '  *\n';
+  } else {
+    sql += state.columns.map(c => `  ${c}`).join(',\n') + '\n';
+  }
+  
+  sql += `FROM ${state.table} ${alias}\n`;
+  
+  if (state.joins && state.joins.length > 0) {
+    for (const j of state.joins) {
+      const jMeta = SQL_SCHEMA[j.table] || { alias: 'j' };
+      sql += `${j.type} ${j.table} ${jMeta.alias} ON ${j.onLeft} = ${j.onRight}\n`;
+    }
+  }
+  
+  if (state.wheres && state.wheres.length > 0) {
+    const whereParts = state.wheres
+      .filter(w => w.column && w.operator)
+      .map(w => `${w.column} ${w.operator} ${w.value || "''"}`);
+    if (whereParts.length > 0) {
+      sql += 'WHERE ' + whereParts.join('\n  AND ') + '\n';
+    }
+  }
+  
+  if (state.groupBy && state.groupBy.length > 0) {
+    sql += `GROUP BY ${state.groupBy.join(', ')}\n`;
+  }
+  
+  if (state.having) {
+    sql += `HAVING ${state.having}\n`;
+  }
+  
+  if (state.orderBy) {
+    sql += `ORDER BY ${state.orderBy} ${state.orderDir || 'ASC'}\n`;
+  }
+  
+  if (state.limit && state.limit !== 'ALL') {
+    sql += `LIMIT ${state.limit};\n`;
+  } else {
+    sql += ';\n';
+  }
+  
+  return sql;
+}
+
+function highlightSqlSyntax(rawSql) {
+  const keywords = [
+    'SELECT', 'FROM', 'INNER JOIN', 'LEFT OUTER JOIN', 'RIGHT OUTER JOIN',
+    'JOIN', 'ON', 'WHERE', 'AND', 'OR', 'GROUP BY', 'HAVING', 'ORDER BY',
+    'LIMIT', 'ASC', 'DESC', 'COUNT', 'SUM', 'AVG', 'COALESCE', 'AS'
+  ];
+  
+  let escaped = rawSql
+    .replace(/&/g, '&amp;')
+    .replace(/</g, '&lt;')
+    .replace(/>/g, '&gt;');
+    
+  // Highlight strings
+  escaped = escaped.replace(/'([^']*)'/g, '<span class="sql-str">\'$1\'</span>');
+  
+  // Highlight keywords
+  for (const kw of keywords) {
+    const regex = new RegExp(`\\b(${kw})\\b`, 'g');
+    escaped = escaped.replace(regex, '<span class="sql-kw">$1</span>');
+  }
+  
+  return escaped;
+}
+
+async function renderSqlBuilder() {
+  const curTable = SQL_SCHEMA[sqlBuilderState.table] || SQL_SCHEMA.parcels;
+  const currentSql = generateSqlString(sqlBuilderState);
+  const highlighted = highlightSqlSyntax(currentSql);
+  
+  return `
+    ${pageHead('SQL Query Builder', 'Interactive SQL generator for logistics relational schema with live syntax preview, presets, and relational algebra.')}
+    
+    <div class="db-tool-container">
+      <div class="disclaimer-badge">
+        <span>⚠️</span>
+        <div>
+          <b>Educational Relational Preview Mode:</b>
+          This interactive builder demonstrates relational DBMS constructs (Tables, Projection, Selection, Joins, Grouping). The live SwiftShip cloud application persists data in Neo4j AuraDB graph database.
+        </div>
+      </div>
+      
+      <div class="preset-container" id="presetContainer">
+        ${SQL_PRESETS.map((p, idx) => `
+          <button class="preset-chip ${sqlBuilderState.activePresetIndex === idx ? 'active' : ''}" onclick="applySqlPreset(${idx})">
+            ${p.title}
+          </button>
+        `).join('')}
+      </div>
+      
+      <div class="sql-workbench">
+        <div>
+          <!-- Table & Columns Clause -->
+          <div class="clause-card">
+            <div class="clause-header">
+              <h4><span class="clause-keyword">FROM</span> Base Table</h4>
+              <select id="builderTableSelect" onchange="onBuilderTableChange(this.value)">
+                ${Object.entries(SQL_SCHEMA).map(([key, t]) => `
+                  <option value="${key}" ${sqlBuilderState.table === key ? 'selected' : ''}>${t.label} (${key})</option>
+                `).join('')}
+              </select>
+            </div>
+            
+            <div class="clause-header" style="margin-top:14px;">
+              <h4><span class="clause-keyword">SELECT</span> Columns</h4>
+              <div class="actions">
+                <button type="button" class="btn btn-sm" onclick="selectAllColumns()">All</button>
+                <button type="button" class="btn btn-sm ghost" onclick="clearColumns()">Clear</button>
+              </div>
+            </div>
+            
+            <div class="chip-selector" id="columnChips">
+              ${curTable.columns.map(c => {
+                const colKey = `${curTable.alias}.${c.name}`;
+                const isSelected = sqlBuilderState.columns.some(sc => sc.startsWith(colKey) || sc === colKey);
+                return `
+                  <div class="chip-item ${isSelected ? 'selected' : ''}" onclick="toggleBuilderColumn('${colKey}')">
+                    ${c.name} <small style="opacity:0.7">${c.type}</small>
+                  </div>
+                `;
+              }).join('')}
+            </div>
+          </div>
+          
+          <!-- JOIN Clause -->
+          <div class="clause-card">
+            <div class="clause-header">
+              <h4><span class="clause-keyword">JOIN</span> Table Relationships</h4>
+              <button type="button" class="btn btn-sm" onclick="addJoinClause()">＋ Add Join</button>
+            </div>
+            
+            <div id="joinRows">
+              ${sqlBuilderState.joins.length === 0 ? '<p style="color:var(--muted);font-size:12px;margin:0;">No joins configured.</p>' : ''}
+              ${sqlBuilderState.joins.map((j, idx) => `
+                <div class="clause-row">
+                  <select onchange="updateJoinField(${idx}, 'type', this.value)">
+                    <option value="INNER JOIN" ${j.type === 'INNER JOIN' ? 'selected' : ''}>INNER JOIN</option>
+                    <option value="LEFT OUTER JOIN" ${j.type === 'LEFT OUTER JOIN' ? 'selected' : ''}>LEFT JOIN</option>
+                    <option value="RIGHT OUTER JOIN" ${j.type === 'RIGHT OUTER JOIN' ? 'selected' : ''}>RIGHT JOIN</option>
+                  </select>
+                  <select onchange="updateJoinField(${idx}, 'table', this.value)">
+                    ${Object.entries(SQL_SCHEMA).map(([k, t]) => `
+                      <option value="${k}" ${j.table === k ? 'selected' : ''}>${t.label}</option>
+                    `).join('')}
+                  </select>
+                  <input placeholder="p.dest_branch_id" value="${j.onLeft}" oninput="updateJoinField(${idx}, 'onLeft', this.value)">
+                  <span>=</span>
+                  <input placeholder="b.branch_id" value="${j.onRight}" oninput="updateJoinField(${idx}, 'onRight', this.value)">
+                  <button type="button" class="remove-btn" onclick="removeJoinClause(${idx})">×</button>
+                </div>
+              `).join('')}
+            </div>
+          </div>
+          
+          <!-- WHERE Clause -->
+          <div class="clause-card">
+            <div class="clause-header">
+              <h4><span class="clause-keyword">WHERE</span> Filters</h4>
+              <button type="button" class="btn btn-sm" onclick="addWhereClause()">＋ Add Filter</button>
+            </div>
+            
+            <div id="whereRows">
+              ${sqlBuilderState.wheres.length === 0 ? '<p style="color:var(--muted);font-size:12px;margin:0;">No conditions specified.</p>' : ''}
+              ${sqlBuilderState.wheres.map((w, idx) => `
+                <div class="clause-row">
+                  <input placeholder="column" value="${w.column}" oninput="updateWhereField(${idx}, 'column', this.value)">
+                  <select onchange="updateWhereField(${idx}, 'operator', this.value)">
+                    <option value="=" ${w.operator === '=' ? 'selected' : ''}>=</option>
+                    <option value="!=" ${w.operator === '!=' ? 'selected' : ''}>!=</option>
+                    <option value="&gt;" ${w.operator === '>' ? 'selected' : ''}>&gt;</option>
+                    <option value="&lt;" ${w.operator === '<' ? 'selected' : ''}>&lt;</option>
+                    <option value="&gt;=" ${w.operator === '>=' ? 'selected' : ''}>&gt;=</option>
+                    <option value="&lt;=" ${w.operator === '<=' ? 'selected' : ''}>&lt;=</option>
+                    <option value="LIKE" ${w.operator === 'LIKE' ? 'selected' : ''}>LIKE</option>
+                    <option value="IN" ${w.operator === 'IN' ? 'selected' : ''}>IN</option>
+                  </select>
+                  <input placeholder="'IN_TRANSIT'" value="${w.value}" oninput="updateWhereField(${idx}, 'value', this.value)">
+                  <button type="button" class="remove-btn" onclick="removeWhereClause(${idx})">×</button>
+                </div>
+              `).join('')}
+            </div>
+          </div>
+          
+          <!-- Order & Limit -->
+          <div class="clause-card">
+            <div class="formgrid">
+              <div class="field">
+                <label>Order By Column</label>
+                <input placeholder="p.created_at" value="${sqlBuilderState.orderBy}" oninput="updateOrderBy(this.value)">
+              </div>
+              <div class="field">
+                <label>Direction & Limit</label>
+                <div style="display:flex;gap:8px;">
+                  <select style="flex:1" onchange="updateOrderDir(this.value)">
+                    <option value="DESC" ${sqlBuilderState.orderDir === 'DESC' ? 'selected' : ''}>DESC (Descending)</option>
+                    <option value="ASC" ${sqlBuilderState.orderDir === 'ASC' ? 'selected' : ''}>ASC (Ascending)</option>
+                  </select>
+                  <select style="width:100px" onchange="updateLimit(this.value)">
+                    <option value="10" ${String(sqlBuilderState.limit) === '10' ? 'selected' : ''}>10</option>
+                    <option value="25" ${String(sqlBuilderState.limit) === '25' ? 'selected' : ''}>25</option>
+                    <option value="50" ${String(sqlBuilderState.limit) === '50' ? 'selected' : ''}>50</option>
+                    <option value="100" ${String(sqlBuilderState.limit) === '100' ? 'selected' : ''}>100</option>
+                    <option value="ALL" ${String(sqlBuilderState.limit) === 'ALL' ? 'selected' : ''}>ALL</option>
+                  </select>
+                </div>
+              </div>
+            </div>
+          </div>
+        </div>
+        
+        <!-- Live SQL Preview Column -->
+        <div>
+          <div class="code-preview-card">
+            <div class="code-preview-header">
+              <span class="code-title">
+                <span>📄</span> Formatted ANSI SQL Statement
+              </span>
+              <div class="code-actions">
+                <button type="button" class="code-btn" id="btnCopySql" onclick="copySqlStatement()">
+                  Copy SQL
+                </button>
+                <button type="button" class="code-btn" onclick="downloadSqlFile()">
+                  Download .sql
+                </button>
+              </div>
+            </div>
+            
+            <pre class="code-block" id="sqlOutputBlock">${highlighted}</pre>
+            
+            <div class="rel-algebra-panel">
+              <b>Relational Algebra Projection:</b>
+              <div id="relAlgebraText">${sqlBuilderState.relAlgebra || 'π [ σ ( R ⨝ S ) ]'}</div>
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+  `;
+}
+
+function initSqlBuilderEvents() {
+  // Event listeners are bound via inline callbacks
+}
+
+function applySqlPreset(idx) {
+  const p = SQL_PRESETS[idx];
+  if (!p) return;
+  sqlBuilderState = {
+    activePresetIndex: idx,
+    table: p.table,
+    columns: [...p.columns],
+    joins: JSON.parse(JSON.stringify(p.joins)),
+    wheres: JSON.parse(JSON.stringify(p.wheres)),
+    groupBy: [...p.groupBy],
+    having: p.having,
+    orderBy: p.orderBy,
+    orderDir: p.orderDir,
+    limit: p.limit,
+    relAlgebra: p.relAlgebra
+  };
+  go('sqlbuilder');
+  toast(`Loaded Preset: ${p.title}`);
+}
+
+function onBuilderTableChange(t) {
+  sqlBuilderState.activePresetIndex = null;
+  sqlBuilderState.table = t;
+  const tMeta = SQL_SCHEMA[t];
+  sqlBuilderState.columns = tMeta ? tMeta.columns.slice(0, 4).map(c => `${tMeta.alias}.${c.name}`) : [];
+  sqlBuilderState.joins = [];
+  sqlBuilderState.wheres = [];
+  sqlBuilderState.orderBy = tMeta ? `${tMeta.alias}.${tMeta.columns[0].name}` : '';
+  sqlBuilderState.relAlgebra = `π [ σ ( ${t} ) ]`;
+  go('sqlbuilder');
+}
+
+function toggleBuilderColumn(colKey) {
+  sqlBuilderState.activePresetIndex = null;
+  const idx = sqlBuilderState.columns.indexOf(colKey);
+  if (idx >= 0) {
+    sqlBuilderState.columns.splice(idx, 1);
+  } else {
+    sqlBuilderState.columns.push(colKey);
+  }
+  updateSqlPreview();
+}
+
+function selectAllColumns() {
+  const tMeta = SQL_SCHEMA[sqlBuilderState.table];
+  if (!tMeta) return;
+  sqlBuilderState.activePresetIndex = null;
+  sqlBuilderState.columns = tMeta.columns.map(c => `${tMeta.alias}.${c.name}`);
+  updateSqlPreview();
+}
+
+function clearColumns() {
+  sqlBuilderState.activePresetIndex = null;
+  sqlBuilderState.columns = [];
+  updateSqlPreview();
+}
+
+function addJoinClause() {
+  sqlBuilderState.activePresetIndex = null;
+  sqlBuilderState.joins.push({
+    type: 'INNER JOIN',
+    table: 'branches',
+    onLeft: 'p.dest_branch_id',
+    onRight: 'b.branch_id'
+  });
+  go('sqlbuilder');
+}
+
+function updateJoinField(idx, field, val) {
+  if (sqlBuilderState.joins[idx]) {
+    sqlBuilderState.joins[idx][field] = val;
+    updateSqlPreview();
+  }
+}
+
+function removeJoinClause(idx) {
+  sqlBuilderState.joins.splice(idx, 1);
+  go('sqlbuilder');
+}
+
+function addWhereClause() {
+  sqlBuilderState.activePresetIndex = null;
+  const tMeta = SQL_SCHEMA[sqlBuilderState.table];
+  sqlBuilderState.wheres.push({
+    column: tMeta ? `${tMeta.alias}.status` : 'status',
+    operator: '=',
+    value: "'IN_TRANSIT'"
+  });
+  go('sqlbuilder');
+}
+
+function updateWhereField(idx, field, val) {
+  if (sqlBuilderState.wheres[idx]) {
+    sqlBuilderState.wheres[idx][field] = val;
+    updateSqlPreview();
+  }
+}
+
+function removeWhereClause(idx) {
+  sqlBuilderState.wheres.splice(idx, 1);
+  go('sqlbuilder');
+}
+
+function updateOrderBy(val) {
+  sqlBuilderState.orderBy = val;
+  updateSqlPreview();
+}
+
+function updateOrderDir(val) {
+  sqlBuilderState.orderDir = val;
+  updateSqlPreview();
+}
+
+function updateLimit(val) {
+  sqlBuilderState.limit = val;
+  updateSqlPreview();
+}
+
+function updateSqlPreview() {
+  const codeBlock = $('#sqlOutputBlock');
+  if (codeBlock) {
+    const raw = generateSqlString(sqlBuilderState);
+    codeBlock.innerHTML = highlightSqlSyntax(raw);
+  }
+  const relBlock = $('#relAlgebraText');
+  if (relBlock) {
+    const cols = sqlBuilderState.columns.length > 0 ? sqlBuilderState.columns.map(c => c.split('.')[1] || c).join(', ') : '*';
+    relBlock.textContent = `π(${cols}) [ σ [ ${sqlBuilderState.table} ] ]`;
+  }
+}
+
+function copySqlStatement() {
+  const sql = generateSqlString(sqlBuilderState);
+  navigator.clipboard.writeText(sql).then(() => {
+    const btn = $('#btnCopySql');
+    if (btn) {
+      const orig = btn.textContent;
+      btn.textContent = '✓ Copied!';
+      btn.classList.add('success');
+      setTimeout(() => {
+        btn.textContent = orig;
+        btn.classList.remove('success');
+      }, 2000);
+    }
+    toast('SQL statement copied to clipboard');
+  }).catch(() => {
+    toast('Unable to access clipboard');
+  });
+}
+
+function downloadSqlFile() {
+  const sql = generateSqlString(sqlBuilderState);
+  const blob = new Blob([sql], { type: 'text/sql;charset=utf-8;' });
+  const url = URL.createObjectURL(blob);
+  const a = document.createElement('a');
+  a.href = url;
+  a.download = `swiftship_${sqlBuilderState.table}_query.sql`;
+  document.body.appendChild(a);
+  a.click();
+  document.body.removeChild(a);
+  URL.revokeObjectURL(url);
+  toast('Downloaded .sql file');
+}
+
+// ==============================================================================
+// DATABASE TOOLS: Oracle PL/SQL Lab
+// ==============================================================================
+
+const PLSQL_PROGRAMS = [
+  {
+    id: 'trg_parcel_status_audit',
+    category: 'triggers',
+    title: 'trg_parcel_status_audit',
+    badge: 'Database Trigger',
+    desc: 'AFTER UPDATE OF status ON parcels FOR EACH ROW with autonomous audit history insertion.',
+    code: `CREATE OR REPLACE TRIGGER trg_parcel_status_audit
+AFTER UPDATE OF status ON parcels
+FOR EACH ROW
+WHEN (OLD.status IS NULL OR OLD.status != NEW.status)
+DECLARE
+  v_user VARCHAR2(30);
+BEGIN
+  -- Obtain active database session user
+  SELECT USER INTO v_user FROM DUAL;
+
+  -- Insert immutable tracking ledger entry
+  INSERT INTO parcel_audit_trail (
+    audit_id,
+    parcel_id,
+    tracking_number,
+    old_status,
+    new_status,
+    changed_by,
+    changed_at
+  ) VALUES (
+    sys_guid(),
+    :NEW.parcel_id,
+    :NEW.tracking_number,
+    :OLD.status,
+    :NEW.status,
+    v_user,
+    SYSTIMESTAMP
+  );
+END trg_parcel_status_audit;
+/`,
+    simulation: {
+      action: 'UPDATE parcels SET status = \'OUT_FOR_DELIVERY\' WHERE tracking_number = \'CR1002348\';',
+      output: `PL/SQL procedure successfully completed.
+[DBMS_OUTPUT] Trigger trg_parcel_status_audit fired.
+[DBMS_OUTPUT] Old Status: IN_TRANSIT -> New Status: OUT_FOR_DELIVERY
+[DBMS_OUTPUT] Recorded audit row sys_guid()='A98F712E-5D3B-4921' by user 'SWIFTSHIP_ADMIN'
+[DBMS_OUTPUT] 1 row updated in table PARCELS.`
+    }
+  },
+  {
+    id: 'trg_validate_parcel_pricing',
+    category: 'triggers',
+    title: 'trg_validate_parcel_pricing',
+    badge: 'Database Trigger',
+    desc: 'BEFORE INSERT OR UPDATE OF weight_kg, base_rate enforcing sanity limits and minimum rates.',
+    code: `CREATE OR REPLACE TRIGGER trg_validate_parcel_pricing
+BEFORE INSERT OR UPDATE OF weight_kg, base_rate ON parcels
+FOR EACH ROW
+DECLARE
+  c_min_base_rate CONSTANT NUMBER := 40.00;
+  c_max_weight    CONSTANT NUMBER := 500.00;
+BEGIN
+  -- Enforce strictly positive consignment mass
+  IF :NEW.weight_kg <= 0 THEN
+    RAISE_APPLICATION_ERROR(-20002, 'Weight must be strictly greater than 0.00 kg');
+  END IF;
+
+  -- Block overweight shipments exceeding single-vehicle legal freight bounds
+  IF :NEW.weight_kg > c_max_weight THEN
+    RAISE_APPLICATION_ERROR(-20003, 'Consignment exceeds single courier load limit of 500.00 kg');
+  END IF;
+
+  -- Enforce minimum base charge floor
+  IF :NEW.base_rate < c_min_base_rate THEN
+    :NEW.base_rate := c_min_base_rate;
+  END IF;
+END trg_validate_parcel_pricing;
+/`,
+    simulation: {
+      action: 'INSERT INTO parcels (tracking_number, weight_kg, base_rate) VALUES (\'CR883719\', 12.5, 30.00);',
+      output: `PL/SQL procedure successfully completed.
+[DBMS_OUTPUT] Trigger trg_validate_parcel_pricing fired.
+[DBMS_OUTPUT] Weight validated: 12.50 kg (Within bounds 0 < W <= 500)
+[DBMS_OUTPUT] Floor rate adjustment: Base rate 30.00 < 40.00 -> Adjusted :NEW.base_rate to 40.00
+[DBMS_OUTPUT] 1 row inserted.`
+    }
+  },
+  {
+    id: 'trg_prevent_unassigned_dispatch',
+    category: 'triggers',
+    title: 'trg_prevent_unassigned_dispatch',
+    badge: 'Database Trigger',
+    desc: 'BEFORE UPDATE OF status raising -20001 if status is OUT_FOR_DELIVERY without agent assignment.',
+    code: `CREATE OR REPLACE TRIGGER trg_prevent_unassigned_dispatch
+BEFORE UPDATE OF status ON parcels
+FOR EACH ROW
+BEGIN
+  IF :NEW.status = 'OUT_FOR_DELIVERY' AND :NEW.delivery_agent_id IS NULL THEN
+    RAISE_APPLICATION_ERROR(
+      -20001,
+      'Dispatch Integrity Violation: Parcel ' || :NEW.tracking_number ||
+      ' cannot be marked OUT_FOR_DELIVERY without an assigned delivery agent.'
+    );
+  END IF;
+END trg_prevent_unassigned_dispatch;
+/`,
+    simulation: {
+      action: 'UPDATE parcels SET status = \'OUT_FOR_DELIVERY\' WHERE tracking_number = \'CR992811\' AND delivery_agent_id IS NULL;',
+      output: `ORA-20001: Dispatch Integrity Violation: Parcel CR992811 cannot be marked OUT_FOR_DELIVERY without an assigned delivery agent.
+ORA-06512: at "SWIFTSHIP.TRG_PREVENT_UNASSIGNED_DISPATCH", line 4
+ORA-04088: error during execution of trigger 'SWIFTSHIP.TRG_PREVENT_UNASSIGNED_DISPATCH'
+[DBMS_OUTPUT] Transaction rolled back safely.`
+    }
+  },
+  {
+    id: 'cur_overdue_deliveries',
+    category: 'explicit_cursors',
+    title: 'cur_overdue_deliveries',
+    badge: 'Explicit Cursor',
+    desc: 'Parameterized explicit cursor traversing overdue consignments with OPEN, FETCH, and CLOSE.',
+    code: `DECLARE
+  CURSOR c_overdue (p_days NUMBER) IS
+    SELECT p.tracking_number, p.status, b.branch_name, p.created_at
+    FROM parcels p
+    JOIN branches b ON p.dest_branch_id = b.branch_id
+    WHERE p.status IN ('PENDING', 'IN_TRANSIT')
+      AND p.created_at < SYSDATE - p_days
+    ORDER BY p.created_at ASC;
+
+  v_rec c_overdue%ROWTYPE;
+  v_count NUMBER := 0;
+BEGIN
+  DBMS_OUTPUT.PUT_LINE('=== OVERDUE SHIPMENT MONITOR (EXPLICIT CURSOR) ===');
+  
+  -- Open cursor with parameter (threshold = 2 days)
+  OPEN c_overdue(2);
+  LOOP
+    FETCH c_overdue INTO v_rec;
+    EXIT WHEN c_overdue%NOTFOUND;
+
+    v_count := v_count + 1;
+    DBMS_OUTPUT.PUT_LINE(
+      '[' || v_count || '] Waybill: ' || v_rec.tracking_number ||
+      ' | Destination: ' || v_rec.branch_name ||
+      ' | Status: ' || v_rec.status
+    );
+  END LOOP;
+  CLOSE c_overdue;
+
+  DBMS_OUTPUT.PUT_LINE('Cursor scan concluded. Flagged consignments: ' || v_count);
+END;
+/`,
+    simulation: {
+      action: 'EXECUTE cur_overdue_deliveries(2);',
+      output: `=== OVERDUE SHIPMENT MONITOR (EXPLICIT CURSOR) ===
+[1] Waybill: CR100982 | Destination: New Delhi Central Hub | Status: IN_TRANSIT
+[2] Waybill: CR100984 | Destination: Mumbai South Depot | Status: PENDING
+[3] Waybill: CR101005 | Destination: Bengaluru Tech Hub | Status: IN_TRANSIT
+Cursor scan concluded. Flagged consignments: 3
+PL/SQL procedure successfully completed.`
+    }
+  },
+  {
+    id: 'cur_branch_manifest_for_loop',
+    category: 'explicit_cursors',
+    title: 'cur_branch_manifest_for_loop',
+    badge: 'Cursor FOR Loop',
+    desc: 'Automates record declaration, OPEN, FETCH, and CLOSE to produce driver dispatch sheets.',
+    code: `DECLARE
+  v_origin_hub VARCHAR2(36) := 'BR-DEL-01';
+  v_manifest_total_wt NUMBER := 0;
+BEGIN
+  DBMS_OUTPUT.PUT_LINE('=== DISPATCH MANIFEST (CURSOR FOR LOOP) ===');
+  DBMS_OUTPUT.PUT_LINE('Originating Hub: ' || v_origin_hub);
+
+  -- Cursor FOR loop handles allocation and termination automatically
+  FOR r_parcel IN (
+    SELECT tracking_number, weight_kg, status
+    FROM parcels
+    WHERE origin_branch_id = v_origin_hub AND status = 'PICKED_UP'
+    ORDER BY tracking_number
+  ) LOOP
+    v_manifest_total_wt := v_manifest_total_wt + r_parcel.weight_kg;
+    DBMS_OUTPUT.PUT_LINE(
+      '  -> Waybill: ' || r_parcel.tracking_number ||
+      ' (' || r_parcel.weight_kg || ' kg)'
+    );
+  END LOOP;
+
+  DBMS_OUTPUT.PUT_LINE('Manifest aggregate freight mass: ' || v_manifest_total_wt || ' kg');
+END;
+/`,
+    simulation: {
+      action: 'EXECUTE cur_branch_manifest_for_loop(\'BR-DEL-01\');',
+      output: `=== DISPATCH MANIFEST (CURSOR FOR LOOP) ===
+Originating Hub: BR-DEL-01
+  -> Waybill: CR200114 (3.40 kg)
+  -> Waybill: CR200118 (1.25 kg)
+  -> Waybill: CR200122 (14.80 kg)
+Manifest aggregate freight mass: 19.45 kg
+PL/SQL procedure successfully completed.`
+    }
+  },
+  {
+    id: 'demo_implicit_cursor_attributes',
+    category: 'implicit_cursors',
+    title: 'demo_implicit_cursor_attributes',
+    badge: 'Cursor Attributes',
+    desc: 'Demonstrates SQL%ROWCOUNT, SQL%FOUND, SQL%NOTFOUND, and SQL%ISOPEN in bulk batch updates.',
+    code: `DECLARE
+  v_archived_count NUMBER := 0;
+BEGIN
+  DBMS_OUTPUT.PUT_LINE('=== DEMONSTRATING ORACLE IMPLICIT CURSOR ATTRIBUTES ===');
+
+  -- Bulk update historical consignments
+  UPDATE parcels
+  SET status = 'ARCHIVED'
+  WHERE status = 'DELIVERED'
+    AND created_at < ADD_MONTHS(SYSDATE, -3);
+
+  -- Check SQL%FOUND and SQL%ROWCOUNT
+  IF SQL%FOUND THEN
+    v_archived_count := SQL%ROWCOUNT;
+    DBMS_OUTPUT.PUT_LINE('SQL%FOUND: TRUE');
+    DBMS_OUTPUT.PUT_LINE('SQL%ROWCOUNT: ' || v_archived_count || ' rows transitioned to ARCHIVED.');
+  ELSE
+    DBMS_OUTPUT.PUT_LINE('SQL%NOTFOUND: TRUE');
+    DBMS_OUTPUT.PUT_LINE('No historical parcels matched the retention archival criteria.');
+  END IF;
+
+  -- In Oracle, SQL%ISOPEN is always evaluated to FALSE immediately following SQL statement
+  IF NOT SQL%ISOPEN THEN
+    DBMS_OUTPUT.PUT_LINE('SQL%ISOPEN: FALSE (Implicit cursor automatically closed by engine).');
+  END IF;
+END;
+/`,
+    simulation: {
+      action: 'EXECUTE demo_implicit_cursor_attributes;',
+      output: `=== DEMONSTRATING ORACLE IMPLICIT CURSOR ATTRIBUTES ===
+SQL%FOUND: TRUE
+SQL%ROWCOUNT: 42 rows transitioned to ARCHIVED.
+SQL%ISOPEN: FALSE (Implicit cursor automatically closed by engine).
+PL/SQL procedure successfully completed.`
+    }
+  },
+  {
+    id: 'pkg_courier_operations',
+    category: 'packages',
+    title: 'pkg_courier_operations',
+    badge: 'Package & TX',
+    desc: 'Package specification and body with PRAGMA AUTONOMOUS_TRANSACTION audit logging and custom exceptions.',
+    code: `CREATE OR REPLACE PACKAGE pkg_courier_operations AS
+  e_capacity_exceeded EXCEPTION;
+  PRAGMA EXCEPTION_INIT(e_capacity_exceeded, -20010);
+
+  PROCEDURE book_consignment(
+    p_customer_id IN VARCHAR2,
+    p_dest_branch IN VARCHAR2,
+    p_weight      IN NUMBER,
+    o_tracking_no OUT VARCHAR2
+  );
+
+  PROCEDURE log_security_event(
+    p_event_desc  IN VARCHAR2
+  );
+END pkg_courier_operations;
+/
+
+CREATE OR REPLACE PACKAGE BODY pkg_courier_operations AS
+  PROCEDURE log_security_event(p_event_desc IN VARCHAR2) IS
+    PRAGMA AUTONOMOUS_TRANSACTION;
+  BEGIN
+    INSERT INTO security_audit_logs (log_id, event_desc, logged_at)
+    VALUES (sys_guid(), p_event_desc, SYSTIMESTAMP);
+    COMMIT;
+  END log_security_event;
+
+  PROCEDURE book_consignment(
+    p_customer_id IN VARCHAR2,
+    p_dest_branch IN VARCHAR2,
+    p_weight      IN NUMBER,
+    o_tracking_no OUT VARCHAR2
+  ) IS
+  BEGIN
+    IF p_weight > 500 THEN
+      log_security_event('OVERWEIGHT_REJECT: Cust ' || p_customer_id || ' Mass ' || p_weight);
+      RAISE e_capacity_exceeded;
+    END IF;
+
+    o_tracking_no := 'CR' || TO_CHAR(SYSDATE, 'YYYYMMDD') || LPAD(ROUND(DBMS_RANDOM.VALUE(1000, 9999)), 4, '0');
+    
+    INSERT INTO parcels (tracking_number, customer_id, dest_branch_id, weight_kg, status, created_at)
+    VALUES (o_tracking_no, p_customer_id, p_dest_branch, p_weight, 'BOOKED', SYSDATE);
+    
+    COMMIT;
+  END book_consignment;
+END pkg_courier_operations;
+/`,
+    simulation: {
+      action: 'pkg_courier_operations.book_consignment(\'C101\', \'BR-MUM-01\', 4.5, v_trk);',
+      output: `PL/SQL procedure successfully completed.
+[DBMS_OUTPUT] Assigned Waybill: CR202610254921
+[DBMS_OUTPUT] Committed parcel record in table PARCELS.
+[DBMS_OUTPUT] Autonomous transaction audit verified.`
+    }
+  }
+];
+
+let selectedPlsqlProgramId = 'trg_parcel_status_audit';
+let plsqlSimulationOutput = null;
+
+async function renderPlsqlLab() {
+  const currentProg = PLSQL_PROGRAMS.find(p => p.id === selectedPlsqlProgramId) || PLSQL_PROGRAMS[0];
+  
+  return `
+    ${pageHead('Oracle PL/SQL Lab', 'Interactive laboratory demonstrating Database Triggers, Explicit Cursors, Implicit Cursor Attributes, and Packages.')}
+    
+    <div class="db-tool-container">
+      <div class="disclaimer-badge">
+        <span>⚠️</span>
+        <div>
+          <b>Educational Reference Schema:</b>
+          This PL/SQL lab demonstrates Oracle PL/SQL procedural database programming tailored to courier logistics requirements. The live SwiftShip cloud application uses Neo4j AuraDB graph database.
+        </div>
+      </div>
+      
+      <div class="plsql-grid">
+        <div class="plsql-sidebar">
+          <div class="program-list">
+            ${PLSQL_PROGRAMS.map(prog => `
+              <div class="program-item ${prog.id === currentProg.id ? 'active' : ''}" onclick="selectPlsqlProgram('${prog.id}')">
+                <div class="program-item-title">
+                  <span>${prog.title}</span>
+                  <span class="program-badge">${prog.badge}</span>
+                </div>
+                <p class="program-item-desc">${prog.desc}</p>
+              </div>
+            `).join('')}
+          </div>
+        </div>
+        
+        <div class="plsql-viewer">
+          <div class="code-preview-card" style="position:static;">
+            <div class="code-preview-header">
+              <span class="code-title">
+                <span>⚡</span> ${currentProg.title} <small style="color:var(--green);font-size:11px;">(${currentProg.badge})</small>
+              </span>
+              <div class="code-actions">
+                <button type="button" class="code-btn" onclick="executePlsqlSimulation('${currentProg.id}')">
+                  ▶ Run DBMS Simulation
+                </button>
+                <button type="button" class="code-btn" id="btnCopyPlsql" onclick="copyPlsqlCode()">
+                  Copy PL/SQL
+                </button>
+                <button type="button" class="code-btn" onclick="downloadPlsqlFile('${currentProg.id}')">
+                  Download .pls
+                </button>
+              </div>
+            </div>
+            
+            <pre class="code-block" id="plsqlCodeBlock">${escapeHtml(currentProg.code)}</pre>
+          </div>
+          
+          <div class="sim-output-box" id="plsqlSimBox">
+            <div class="sim-header">
+              <span>Oracle DBMS_OUTPUT.PUT_LINE Console Stream</span>
+              <span>Buffer: Active</span>
+            </div>
+            <div id="plsqlSimContent">
+              ${plsqlSimulationOutput || `[DBMS_OUTPUT] Simulation ready. Click "▶ Run DBMS Simulation" to execute anonymous block and inspect buffer output.`}
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+  `;
+}
+
+function initPlsqlLabEvents() {
+  // Handled via inline callbacks
+}
+
+function selectPlsqlProgram(id) {
+  selectedPlsqlProgramId = id;
+  plsqlSimulationOutput = null;
+  go('plsql');
+}
+
+function executePlsqlSimulation(id) {
+  const prog = PLSQL_PROGRAMS.find(p => p.id === id);
+  if (!prog) return;
+  
+  const box = $('#plsqlSimContent');
+  if (box) {
+    box.innerHTML = `<span style="color:#f59e0b;">Executing PL/SQL Anonymous Block on virtual Oracle 23ai session...</span>`;
+    setTimeout(() => {
+      plsqlSimulationOutput = `
+<span style="color:#94a3b8;">-- Executed Statement:</span>
+${escapeHtml(prog.simulation.action)}
+
+<span style="color:#94a3b8;">-- DBMS_OUTPUT Stream:</span>
+${escapeHtml(prog.simulation.output)}
+      `.trim();
+      box.innerHTML = plsqlSimulationOutput;
+      toast(`Executed simulated block for ${prog.title}`);
+    }, 300);
+  }
+}
+
+function copyPlsqlCode() {
+  const prog = PLSQL_PROGRAMS.find(p => p.id === selectedPlsqlProgramId);
+  if (!prog) return;
+  navigator.clipboard.writeText(prog.code).then(() => {
+    const btn = $('#btnCopyPlsql');
+    if (btn) {
+      btn.textContent = '✓ Copied!';
+      setTimeout(() => btn.textContent = 'Copy PL/SQL', 2000);
+    }
+    toast('PL/SQL code copied to clipboard');
+  }).catch(() => {
+    toast('Unable to copy to clipboard');
+  });
+}
+
+function downloadPlsqlFile(id) {
+  const prog = PLSQL_PROGRAMS.find(p => p.id === id);
+  if (!prog) return;
+  const blob = new Blob([prog.code], { type: 'text/plain;charset=utf-8;' });
+  const url = URL.createObjectURL(blob);
+  const a = document.createElement('a');
+  a.href = url;
+  a.download = `${prog.id}.pls`;
+  document.body.appendChild(a);
+  a.click();
+  document.body.removeChild(a);
+  URL.revokeObjectURL(url);
+  toast(`Downloaded ${prog.id}.pls`);
+}
+
+function escapeHtml(str) {
+  return String(str)
+    .replace(/&/g, '&amp;')
+    .replace(/</g, '&lt;')
+    .replace(/>/g, '&gt;');
+}
+
+// ==============================================================================
+// DATABASE TOOLS: Live Neo4j Graph Explorer
+// ==============================================================================
+
+const GRAPH_PALETTE = {
+  Parcel: '#10b981',
+  Customer: '#3b82f6',
+  Branch: '#f97316',
+  DeliveryAgent: '#8b5cf6',
+  Vehicle: '#f59e0b',
+  CourierService: '#06b6d4',
+  Payment: '#ec4899',
+  SupportTicket: '#ef4444',
+  Staff: '#6366f1',
+  Route: '#14b8a6',
+  Other: '#64748b'
+};
+
+let graphEngine = {
+  canvas: null,
+  ctx: null,
+  nodes: [],
+  edges: [],
+  stats: null,
+  selectedNode: null,
+  hoveredNode: null,
+  isDraggingNode: null,
+  isPanning: false,
+  panX: 0,
+  panY: 0,
+  zoom: 1,
+  startDragX: 0,
+  startDragY: 0,
+  animationId: null,
+  physicsRunning: true,
+  filterLabel: 'ALL',
+  searchQuery: '',
+  limit: 80
+};
+
+async function renderGraphExplorer() {
+  const queryParams = new URLSearchParams();
+  queryParams.set('nodeLimit', String(graphEngine.limit));
+  if (graphEngine.filterLabel && graphEngine.filterLabel !== 'ALL') {
+    queryParams.set('label', graphEngine.filterLabel);
+  }
+  if (graphEngine.searchQuery) {
+    queryParams.set('search', graphEngine.searchQuery);
+  }
+  
+  let graphData = null;
+  try {
+    graphData = await api(`/api/graph/overview?${queryParams.toString()}`);
+  } catch (err) {
+    return `
+      ${pageHead('Live Graph Explorer', 'Direct force-directed graph visualization of live Neo4j AuraDB nodes and relationships.')}
+      ${renderErrorBanner(err)}
+    `;
+  }
+  
+  const rawNodes = graphData.nodes || [];
+  const rawEdges = graphData.edges || [];
+  const stats = graphData.stats || {};
+  
+  if (rawNodes.length === 0) {
+    return `
+      ${pageHead('Live Graph Explorer', 'Direct force-directed graph visualization of live Neo4j AuraDB nodes and relationships.')}
+      
+      <div class="panel" style="text-align:center;padding:60px 20px;">
+        <div style="font-size:42px;margin-bottom:12px;">🕸</div>
+        <h3 style="font:800 20px var(--font-head);margin:0 0 8px;">Database Connected — 0 Nodes Stored</h3>
+        <p style="color:var(--muted);font-size:13px;max-width:540px;margin:0 auto 20px;">
+          Your Neo4j AuraDB instance is connected and online. Currently there are no nodes matching your criteria in the database. Book a parcel or register a customer to populate real graph relationships.
+        </p>
+        <div class="actions" style="justify-content:center;">
+          <button class="btn primary" onclick="openBookParcelModal()">＋ Book First Parcel</button>
+          <button class="btn ghost" onclick="go('customers')">Customer Directory ↗</button>
+        </div>
+      </div>
+    `;
+  }
+  
+  return `
+    ${pageHead('Live Graph Explorer', 'Direct force-directed graph visualization of live Neo4j AuraDB nodes and relationships.')}
+    
+    <div class="graph-wrapper">
+      <div class="graph-stats-bar">
+        <div class="graph-stat-pill">
+          <span class="pill-dot"></span>
+          <span>Nodes in View: <b id="statVisibleNodes">${rawNodes.length}</b></span>
+        </div>
+        <div class="graph-stat-pill">
+          <span class="pill-dot" style="background:#3b82f6;"></span>
+          <span>Relationships: <b id="statVisibleEdges">${rawEdges.length}</b></span>
+        </div>
+        <div class="graph-stat-pill">
+          <span>AuraDB Total Nodes: <b>${stats.totalNodes ?? rawNodes.length}</b></span>
+        </div>
+        <div class="graph-stat-pill">
+          <span>AuraDB Total Relationships: <b>${stats.totalRelationships ?? rawEdges.length}</b></span>
+        </div>
+      </div>
+      
+      <div class="graph-viewport-panel" id="graphViewport">
+        <!-- Floating Toolbar -->
+        <div class="graph-toolbar">
+          <button type="button" class="graph-tool-btn" title="Zoom In" onclick="graphZoom(1.2)">＋</button>
+          <button type="button" class="graph-tool-btn" title="Zoom Out" onclick="graphZoom(0.8)">−</button>
+          <button type="button" class="graph-tool-btn" title="Fit to Screen" onclick="graphResetView()">⛶</button>
+          <button type="button" class="graph-tool-btn" id="btnTogglePhysics" title="Pause / Resume Physics" onclick="graphTogglePhysics()">⏸</button>
+          
+          <select class="graph-filter-select" id="graphLabelFilter" onchange="graphOnLabelChange(this.value)">
+            <option value="ALL">All Categories</option>
+            ${(stats.availableLabels || []).map(l => `
+              <option value="${l.label}" ${graphEngine.filterLabel === l.label ? 'selected' : ''}>${l.label} (${l.count})</option>
+            `).join('')}
+          </select>
+          
+          <select class="graph-filter-select" id="graphLimitSelect" onchange="graphOnLimitChange(this.value)">
+            <option value="40" ${graphEngine.limit === 40 ? 'selected' : ''}>40 Nodes</option>
+            <option value="80" ${graphEngine.limit === 80 ? 'selected' : ''}>80 Nodes</option>
+            <option value="120" ${graphEngine.limit === 120 ? 'selected' : ''}>120 Nodes</option>
+            <option value="160" ${graphEngine.limit === 160 ? 'selected' : ''}>160 Nodes</option>
+          </select>
+          
+          <input class="graph-search-input" id="graphSearchInput" placeholder="Filter graph nodes..." oninput="graphOnSearch(this.value)">
+        </div>
+        
+        <canvas id="graphCanvas"></canvas>
+        
+        <!-- Node Inspector Drawer -->
+        <div class="node-drawer" id="nodeDrawer">
+          <div class="drawer-head">
+            <h4 id="drawerNodeTitle">Node Inspector</h4>
+            <button type="button" class="drawer-close" onclick="closeNodeDrawer()">×</button>
+          </div>
+          <div id="drawerBody">
+            <p style="color:var(--muted);font-size:12px;">Click any node to view entity properties and connected edges.</p>
+          </div>
+        </div>
+      </div>
+      
+      <!-- Graph Legend -->
+      <div class="graph-legend">
+        ${Object.entries(GRAPH_PALETTE).map(([lbl, color]) => `
+          <div class="legend-item">
+            <span class="legend-dot" style="background:${color}"></span>
+            <span>${lbl}</span>
+          </div>
+        `).join('')}
+      </div>
+    </div>
+  `;
+}
+
+function initGraphExplorerEvents() {
+  const canvas = $('#graphCanvas');
+  if (!canvas) return;
+  
+  const viewport = $('#graphViewport');
+  const rect = viewport.getBoundingClientRect();
+  canvas.width = rect.width || 1000;
+  canvas.height = 620;
+  
+  const ctx = canvas.getContext('2d');
+  graphEngine.canvas = canvas;
+  graphEngine.ctx = ctx;
+  
+  // Re-fetch raw data currently displayed
+  api(`/api/graph/overview?nodeLimit=${graphEngine.limit}&label=${graphEngine.filterLabel === 'ALL' ? '' : graphEngine.filterLabel}`)
+    .then(data => {
+      buildForceGraph(data.nodes || [], data.edges || []);
+    })
+    .catch(() => {});
+    
+  // Canvas Mouse Listeners
+  canvas.addEventListener('mousedown', onGraphMouseDown);
+  window.addEventListener('mousemove', onGraphMouseMove);
+  window.addEventListener('mouseup', onGraphMouseUp);
+  canvas.addEventListener('wheel', onGraphWheel, { passive: false });
+  
+  // Window resize handler
+  window.addEventListener('resize', onGraphResize);
+}
+
+function onGraphResize() {
+  if (!graphEngine.canvas) return;
+  const viewport = $('#graphViewport');
+  if (!viewport) return;
+  const rect = viewport.getBoundingClientRect();
+  graphEngine.canvas.width = rect.width || 1000;
+}
+
+function buildForceGraph(rawNodes, rawEdges) {
+  if (graphEngine.animationId) {
+    cancelAnimationFrame(graphEngine.animationId);
+  }
+  
+  const width = graphEngine.canvas.width;
+  const height = graphEngine.canvas.height;
+  const centerX = width / 2;
+  const centerY = height / 2;
+  
+  // Initialize Node positions
+  const nodeMap = new Map();
+  graphEngine.nodes = rawNodes.map((rn, idx) => {
+    const angle = (idx / rawNodes.length) * Math.PI * 2;
+    const radius = 120 + Math.random() * 140;
+    const label = rn.primaryLabel || 'Other';
+    const color = GRAPH_PALETTE[label] || GRAPH_PALETTE.Other;
+    
+    const nodeObj = {
+      id: rn.id,
+      caption: rn.caption || label,
+      primaryLabel: label,
+      labels: rn.labels || [],
+      properties: rn.properties || {},
+      color,
+      radius: 20,
+      x: centerX + Math.cos(angle) * radius,
+      y: centerY + Math.sin(angle) * radius,
+      vx: 0,
+      vy: 0,
+      isPinned: false
+    };
+    nodeMap.set(rn.id, nodeObj);
+    return nodeObj;
+  });
+  
+  // Wire Edges
+  graphEngine.edges = rawEdges
+    .map(re => {
+      const source = nodeMap.get(re.source);
+      const target = nodeMap.get(re.target);
+      if (!source || !target) return null;
+      return {
+        id: re.id,
+        type: re.type,
+        source,
+        target,
+        properties: re.properties || {}
+      };
+    })
+    .filter(Boolean);
+    
+  graphEngine.panX = 0;
+  graphEngine.panY = 0;
+  graphEngine.zoom = 1;
+  graphEngine.physicsRunning = true;
+  
+  runGraphLoop();
+}
+
+function runGraphLoop() {
+  const ctx = graphEngine.ctx;
+  const canvas = graphEngine.canvas;
+  if (!ctx || !canvas) return;
+  
+  const width = canvas.width;
+  const height = canvas.height;
+  const centerX = width / 2;
+  const centerY = height / 2;
+  
+  // 1. Force calculations if physics running
+  if (graphEngine.physicsRunning) {
+    const nodes = graphEngine.nodes;
+    const edges = graphEngine.edges;
+    
+    // Repulsion between all pairs
+    for (let i = 0; i < nodes.length; i++) {
+      for (let j = i + 1; j < nodes.length; j++) {
+        const a = nodes[i];
+        const b = nodes[j];
+        const dx = b.x - a.x;
+        const dy = b.y - a.y;
+        const distSq = dx * dx + dy * dy + 100;
+        const dist = Math.sqrt(distSq);
+        const force = 2800 / distSq;
+        const fx = (dx / dist) * force;
+        const fy = (dy / dist) * force;
+        
+        if (!a.isPinned) { a.vx -= fx; a.vy -= fy; }
+        if (!b.isPinned) { b.vx += fx; b.vy += fy; }
+      }
+    }
+    
+    // Spring attraction along edges
+    for (const e of edges) {
+      const dx = e.target.x - e.source.x;
+      const dy = e.target.y - e.source.y;
+      const dist = Math.sqrt(dx * dx + dy * dy) || 1;
+      const restLen = 90;
+      const force = (dist - restLen) * 0.04;
+      const fx = (dx / dist) * force;
+      const fy = (dy / dist) * force;
+      
+      if (!e.source.isPinned) { e.source.vx += fx; e.source.vy += fy; }
+      if (!e.target.isPinned) { e.target.vx -= fx; e.target.vy -= fy; }
+    }
+    
+    // Centering gravity & damping
+    for (const n of nodes) {
+      if (!n.isPinned) {
+        const dx = centerX - n.x;
+        const dy = centerY - n.y;
+        n.vx += dx * 0.015;
+        n.vy += dy * 0.015;
+        
+        n.vx *= 0.85;
+        n.vy *= 0.85;
+        
+        n.x += n.vx;
+        n.y += n.vy;
+      }
+    }
+  }
+  
+  // 2. Render Frame
+  ctx.save();
+  ctx.clearRect(0, 0, width, height);
+  
+  // Transform for Pan & Zoom
+  ctx.translate(width / 2 + graphEngine.panX, height / 2 + graphEngine.panY);
+  ctx.scale(graphEngine.zoom, graphEngine.zoom);
+  ctx.translate(-width / 2, -height / 2);
+  
+  // Draw Edges
+  for (const e of graphEngine.edges) {
+    const isHighlighted = graphEngine.hoveredNode && (e.source === graphEngine.hoveredNode || e.target === graphEngine.hoveredNode);
+    ctx.strokeStyle = isHighlighted ? '#10b981' : '#cbd5e1';
+    ctx.lineWidth = isHighlighted ? 2.5 : 1.2;
+    
+    ctx.beginPath();
+    ctx.moveTo(e.source.x, e.source.y);
+    ctx.lineTo(e.target.x, e.target.y);
+    ctx.stroke();
+    
+    // Arrow
+    const angle = Math.atan2(e.target.y - e.source.y, e.target.x - e.source.x);
+    const arrowX = e.target.x - Math.cos(angle) * (e.target.radius + 6);
+    const arrowY = e.target.y - Math.sin(angle) * (e.target.radius + 6);
+    
+    ctx.fillStyle = ctx.strokeStyle;
+    ctx.beginPath();
+    ctx.moveTo(arrowX, arrowY);
+    ctx.lineTo(arrowX - 8 * Math.cos(angle - Math.PI / 6), arrowY - 8 * Math.sin(angle - Math.PI / 6));
+    ctx.lineTo(arrowX - 8 * Math.cos(angle + Math.PI / 6), arrowY - 8 * Math.sin(angle + Math.PI / 6));
+    ctx.closePath();
+    ctx.fill();
+    
+    // Edge label badge in center
+    const midX = (e.source.x + e.target.x) / 2;
+    const midY = (e.source.y + e.target.y) / 2;
+    ctx.font = '9px DM Sans';
+    ctx.fillStyle = '#64748b';
+    ctx.textAlign = 'center';
+    ctx.textBaseline = 'middle';
+    ctx.fillText(e.type, midX, midY - 6);
+  }
+  
+  // Draw Nodes
+  for (const n of graphEngine.nodes) {
+    const isSelected = graphEngine.selectedNode === n;
+    const isHovered = graphEngine.hoveredNode === n;
+    const isMatch = !graphEngine.searchQuery || n.caption.toLowerCase().includes(graphEngine.searchQuery.toLowerCase());
+    
+    ctx.save();
+    if (!isMatch) {
+      ctx.globalAlpha = 0.2;
+    }
+    
+    // Outer highlight circle
+    if (isSelected || isHovered) {
+      ctx.beginPath();
+      ctx.arc(n.x, n.y, n.radius + 6, 0, Math.PI * 2);
+      ctx.fillStyle = isSelected ? 'rgba(5, 150, 105, 0.25)' : 'rgba(100, 116, 139, 0.15)';
+      ctx.fill();
+    }
+    
+    // Main circle
+    ctx.beginPath();
+    ctx.arc(n.x, n.y, n.radius, 0, Math.PI * 2);
+    ctx.fillStyle = n.color;
+    ctx.fill();
+    ctx.lineWidth = 2.5;
+    ctx.strokeStyle = '#ffffff';
+    ctx.stroke();
+    
+    // Node icon/symbol
+    ctx.fillStyle = '#ffffff';
+    ctx.font = 'bold 11px DM Sans';
+    ctx.textAlign = 'center';
+    ctx.textBaseline = 'middle';
+    ctx.fillText(n.primaryLabel.slice(0, 1), n.x, n.y);
+    
+    // Caption under node
+    ctx.fillStyle = isSelected ? '#059669' : '#1e293b';
+    ctx.font = isSelected ? 'bold 11px DM Sans' : '500 10.5px DM Sans';
+    ctx.fillText(n.caption, n.x, n.y + n.radius + 12);
+    
+    ctx.restore();
+  }
+  
+  ctx.restore();
+  graphEngine.animationId = requestAnimationFrame(runGraphLoop);
+}
+
+function screenToGraphCoords(clientX, clientY) {
+  const rect = graphEngine.canvas.getBoundingClientRect();
+  const screenX = clientX - rect.left;
+  const screenY = clientY - rect.top;
+  const width = graphEngine.canvas.width;
+  const height = graphEngine.canvas.height;
+  
+  const normX = screenX - (width / 2 + graphEngine.panX);
+  const normY = screenY - (height / 2 + graphEngine.panY);
+  
+  const graphX = normX / graphEngine.zoom + width / 2;
+  const graphY = normY / graphEngine.zoom + height / 2;
+  
+  return { x: graphX, y: graphY };
+}
+
+function findNodeAt(x, y) {
+  for (let i = graphEngine.nodes.length - 1; i >= 0; i--) {
+    const n = graphEngine.nodes[i];
+    const dx = n.x - x;
+    const dy = n.y - y;
+    if (dx * dx + dy * dy <= (n.radius + 4) * (n.radius + 4)) {
+      return n;
+    }
+  }
+  return null;
+}
+
+function onGraphMouseDown(e) {
+  const { x, y } = screenToGraphCoords(e.clientX, e.clientY);
+  const clickedNode = findNodeAt(x, y);
+  
+  if (clickedNode) {
+    graphEngine.isDraggingNode = clickedNode;
+    clickedNode.isPinned = true;
+    graphEngine.selectedNode = clickedNode;
+    openNodeDrawer(clickedNode);
+  } else {
+    graphEngine.isPanning = true;
+    graphEngine.startDragX = e.clientX - graphEngine.panX;
+    graphEngine.startDragY = e.clientY - graphEngine.panY;
+  }
+}
+
+function onGraphMouseMove(e) {
+  if (graphEngine.isDraggingNode) {
+    const { x, y } = screenToGraphCoords(e.clientX, e.clientY);
+    graphEngine.isDraggingNode.x = x;
+    graphEngine.isDraggingNode.y = y;
+  } else if (graphEngine.isPanning) {
+    graphEngine.panX = e.clientX - graphEngine.startDragX;
+    graphEngine.panY = e.clientY - graphEngine.startDragY;
+  } else if (graphEngine.canvas) {
+    const { x, y } = screenToGraphCoords(e.clientX, e.clientY);
+    const node = findNodeAt(x, y);
+    if (node !== graphEngine.hoveredNode) {
+      graphEngine.hoveredNode = node;
+      graphEngine.canvas.style.cursor = node ? 'pointer' : 'grab';
+    }
+  }
+}
+
+function onGraphMouseUp() {
+  if (graphEngine.isDraggingNode) {
+    graphEngine.isDraggingNode.isPinned = false;
+    graphEngine.isDraggingNode = null;
+  }
+  graphEngine.isPanning = false;
+}
+
+function onGraphWheel(e) {
+  e.preventDefault();
+  const factor = e.deltaY < 0 ? 1.1 : 0.9;
+  graphZoom(factor);
+}
+
+function graphZoom(factor) {
+  const nextZoom = Math.min(Math.max(graphEngine.zoom * factor, 0.3), 3);
+  graphEngine.zoom = nextZoom;
+}
+
+function graphResetView() {
+  graphEngine.panX = 0;
+  graphEngine.panY = 0;
+  graphEngine.zoom = 1;
+}
+
+function graphTogglePhysics() {
+  graphEngine.physicsRunning = !graphEngine.physicsRunning;
+  const btn = $('#btnTogglePhysics');
+  if (btn) {
+    btn.textContent = graphEngine.physicsRunning ? '⏸' : '▶';
+    btn.title = graphEngine.physicsRunning ? 'Pause Physics' : 'Resume Physics';
+  }
+}
+
+function graphOnLabelChange(lbl) {
+  graphEngine.filterLabel = lbl;
+  go('graph');
+}
+
+function graphOnLimitChange(val) {
+  graphEngine.limit = parseInt(val, 10) || 80;
+  go('graph');
+}
+
+function graphOnSearch(q) {
+  graphEngine.searchQuery = q.trim();
+}
+
+function openNodeDrawer(node) {
+  const drawer = $('#nodeDrawer');
+  const title = $('#drawerNodeTitle');
+  const body = $('#drawerBody');
+  if (!drawer || !title || !body) return;
+  
+  title.innerHTML = `
+    <span style="display:inline-block;width:10px;height:10px;border-radius:50%;background:${node.color};margin-right:6px;"></span>
+    ${escapeHtml(node.caption)}
+  `;
+  
+  // Find connected edges
+  const connectedEdges = graphEngine.edges.filter(e => e.source === node || e.target === node);
+  
+  body.innerHTML = `
+    <div style="margin-bottom:14px;">
+      <span class="tool-tag" style="background:${node.color}22;color:${node.color};font-size:10px;font-weight:700;">
+        ${node.primaryLabel}
+      </span>
+      <span style="font-size:11px;color:var(--muted);margin-left:8px;font-family:var(--font-mono);">
+        ID: ${node.id}
+      </span>
+    </div>
+    
+    <div style="margin-bottom:16px;">
+      <div style="font-size:11px;font-weight:700;color:var(--muted);text-transform:uppercase;margin-bottom:6px;">Connected Relationships (${connectedEdges.length})</div>
+      <div style="display:flex;flex-direction:column;gap:4px;max-height:140px;overflow-y:auto;">
+        ${connectedEdges.length === 0 ? '<span style="font-size:11px;color:var(--muted);">No relationships visible in current view.</span>' : ''}
+        ${connectedEdges.map(e => {
+          const isSource = e.source === node;
+          const other = isSource ? e.target : e.source;
+          return `
+            <div style="background:#f8fafc;border:1px solid var(--line);border-radius:6px;padding:6px 8px;font-size:11px;display:flex;align-items:center;justify-content:space-between;">
+              <span>${isSource ? `→ [${e.type}]` : `← [${e.type}]`}</span>
+              <b style="color:var(--ink);">${escapeHtml(other.caption)}</b>
+            </div>
+          `;
+        }).join('')}
+      </div>
+    </div>
+    
+    <div>
+      <div style="font-size:11px;font-weight:700;color:var(--muted);text-transform:uppercase;margin-bottom:6px;">Properties</div>
+      <table class="drawer-prop-table">
+        <tbody>
+          ${Object.entries(node.properties).map(([k, v]) => `
+            <tr>
+              <th>${escapeHtml(k)}</th>
+              <td>${escapeHtml(String(v))}</td>
+            </tr>
+          `).join('')}
+        </tbody>
+      </table>
+    </div>
+  `;
+  
+  drawer.classList.add('open');
+}
+
+function closeNodeDrawer() {
+  $('#nodeDrawer')?.classList.remove('open');
+  graphEngine.selectedNode = null;
+}
+
 // ------------------------------------------------------------------------------
-// Event Listeners & Boot
+// Enhanced Event Listeners & Boot
 // ------------------------------------------------------------------------------
 $$('.navitem').forEach(b => b.addEventListener('click', () => go(b.dataset.page)));
 
-$('#hamb')?.addEventListener('click', () => $('#sidebar')?.classList.toggle('open'));
+function toggleSidebar() {
+  const sb = $('#sidebar');
+  const overlay = $('#sidebarOverlay');
+  if (!sb) return;
+  
+  if (window.innerWidth <= 768) {
+    const isOpen = sb.classList.toggle('open');
+    overlay?.classList.toggle('active', isOpen);
+  } else {
+    const isCompact = sb.classList.toggle('compact');
+    try {
+      localStorage.setItem('swiftship_sidebar_compact', isCompact ? 'true' : 'false');
+    } catch (_) {}
+  }
+}
+
+$('#hamb')?.addEventListener('click', toggleSidebar);
+
+$('#sidebarOverlay')?.addEventListener('click', () => {
+  $('#sidebar')?.classList.remove('open');
+  $('#sidebarOverlay')?.classList.remove('active');
+});
+
+window.addEventListener('keydown', e => {
+  if (e.key === 'Escape') {
+    $('#sidebar')?.classList.remove('open');
+    $('#sidebarOverlay')?.classList.remove('active');
+    closeModal();
+    closeNodeDrawer();
+  }
+  // Global ⌘K or Ctrl+K search focus
+  if ((e.metaKey || e.ctrlKey) && e.key.toLowerCase() === 'k') {
+    e.preventDefault();
+    $('#globalSearch')?.focus();
+  }
+});
 
 $('#globalSearch')?.addEventListener('keydown', e => {
   if (e.key === 'Enter') {
     const q = e.target.value.trim().toUpperCase();
-    if (q.startsWith('TRK') || q.startsWith('P')) {
+    if (q.startsWith('TRK') || q.startsWith('P') || q.startsWith('CR')) {
       go('tracking');
       setTimeout(() => searchTracking(q), 100);
     } else if (q.startsWith('C')) {
@@ -2059,7 +3807,18 @@ $('#connWorkspace')?.addEventListener('click', promptBackendUrl);
 (async function init() {
   const footerBase = $('#footerApiBase');
   if (footerBase) footerBase.textContent = API_BASE ? API_BASE : 'Netlify Functions (Same Origin)';
+  
+  // Restore sidebar compact state on desktop
+  if (window.innerWidth > 768) {
+    try {
+      const savedCompact = localStorage.getItem('swiftship_sidebar_compact') === 'true';
+      if (savedCompact) {
+        $('#sidebar')?.classList.add('compact');
+      }
+    } catch (_) {}
+  }
+  
   await checkBackendHealth();
   go('dashboard');
   setInterval(checkBackendHealth, 30000);
-})();
+})();
