@@ -56,7 +56,24 @@ export async function createService(data) {
 }
 
 export async function listServices() {
-  const rows = await runQuery('MATCH (cs:CourierService) RETURN cs ORDER BY cs.serviceId ASC');
+  let rows = await runQuery('MATCH (cs:CourierService) RETURN cs ORDER BY cs.serviceId ASC');
+  if (rows.length === 0) {
+    const defaultServices = [
+      { serviceId: 'S001', name: 'Standard Ground', estimatedDays: 3, baseCharge: 50.0, description: 'Economical ground delivery nationwide', active: true },
+      { serviceId: 'S002', name: 'Express Air', estimatedDays: 1, baseCharge: 150.0, description: 'Next-day guaranteed priority air courier', active: true },
+      { serviceId: 'S003', name: 'Same-Day City', estimatedDays: 0, baseCharge: 250.0, description: 'Intra-city rapid dispatch within hours', active: true }
+    ];
+    for (const s of defaultServices) {
+      await runQuery(
+        `MERGE (cs:CourierService {serviceId: $serviceId})
+         ON CREATE SET cs.name = $name, cs.estimatedDays = $estimatedDays, cs.baseCharge = $baseCharge, cs.description = $description, cs.active = $active`,
+        s,
+        { write: true }
+      );
+    }
+    rows = await runQuery('MATCH (cs:CourierService) RETURN cs ORDER BY cs.serviceId ASC');
+  }
+
   return rows.map(r => ({
     serviceId: r.cs.serviceId,
     name: r.cs.name,

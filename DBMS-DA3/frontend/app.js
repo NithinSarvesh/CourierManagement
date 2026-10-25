@@ -2266,6 +2266,7 @@ const SQL_PRESETS = [
 ];
 
 let sqlBuilderState = {
+  mode: 'educational', // 'educational' | 'live'
   activePresetIndex: 0,
   table: 'parcels',
   columns: [...SQL_PRESETS[0].columns],
@@ -2276,15 +2277,22 @@ let sqlBuilderState = {
   orderBy: SQL_PRESETS[0].orderBy,
   orderDir: SQL_PRESETS[0].orderDir,
   limit: SQL_PRESETS[0].limit,
-  relAlgebra: SQL_PRESETS[0].relAlgebra
+  relAlgebra: SQL_PRESETS[0].relAlgebra,
+  isExecuting: false,
+  executionResult: null
 };
+
+function setSqlBuilderMode(mode) {
+  sqlBuilderState.mode = mode;
+  go('sqlbuilder');
+}
 
 function generateSqlString(state) {
   const tMeta = SQL_SCHEMA[state.table] || { alias: 't' };
   const alias = tMeta.alias || 't';
   
   let sql = 'SELECT\n';
-  if (state.columns.length === 0) {
+  if (!state.columns || state.columns.length === 0) {
     sql += '  *\n';
   } else {
     sql += state.columns.map(c => `  ${c}`).join(',\n') + '\n';
@@ -2336,10 +2344,7 @@ function highlightSqlSyntax(rawSql) {
     'LIMIT', 'ASC', 'DESC', 'COUNT', 'SUM', 'AVG', 'COALESCE', 'AS'
   ];
   
-  let escaped = rawSql
-    .replace(/&/g, '&amp;')
-    .replace(/</g, '&lt;')
-    .replace(/>/g, '&gt;');
+  let escaped = escapeHtml(rawSql);
     
   // Highlight strings
   escaped = escaped.replace(/'([^']*)'/g, '<span class="sql-str">\'$1\'</span>');
@@ -2353,20 +2358,210 @@ function highlightSqlSyntax(rawSql) {
   return escaped;
 }
 
+function syncColumnChipsUi() {
+  const container = $('#columnChips');
+  if (!container) return;
+  const chips = container.querySelectorAll('.chip-item');
+  chips.forEach(chip => {
+    const colKey = chip.getAttribute('data-col');
+    if (!colKey) return;
+    const isSelected = sqlBuilderState.columns.some(c => {
+      const raw = c.trim().split(/\s+AS\s+/i)[0].trim();
+      return raw === colKey || c === colKey;
+    });
+    chip.classList.toggle('selected', isSelected);
+  });
+}
+
+function toggleBuilderColumn(colKey) {
+  sqlBuilderState.activePresetIndex = null;
+  const existingIdx = sqlBuilderState.columns.findIndex(c => {
+    const raw = c.trim().split(/\s+AS\s+/i)[0].trim();
+    return raw === colKey || c === colKey;
+  });
+  if (existingIdx >= 0) {
+    sqlBuilderState.columns.splice(existingIdx, 1);
+  } else {
+    sqlBuilderState.columns.push(colKey);
+  }
+  syncColumnChipsUi();
+  updateSqlPreview();
+}
+
+function selectAllColumns() {
+  const tMeta = SQL_SCHEMA[sqlBuilderState.table];
+  if (!tMeta) return;
+  sqlBuilderState.activePresetIndex = null;
+  sqlBuilderState.columns = tMeta.columns.map(c => `${tMeta.alias}.${c.name}`);
+  syncColumnChipsUi();
+  updateSqlPreview();
+}
+
+function clearColumns() {
+  sqlBuilderState.activePresetIndex = null;
+  sqlBuilderState.columns = [];
+  syncColumnChipsUi();
+  updateSqlPreview();
+}
+
+function renderExecutionPanel() {
+  const container = $('#liveExecContainer');
+  if (!container) return;
+
+  if (sqlBuilderState.isExecuting) {
+    container.innerHTML = `
+      <div class="live-exec-panel" style="text-align:center;padding:36px 20px;">
+        <div style="font-size:28px;margin-bottom:8px;">⚙️</div>
+        <div style="font-weight:700;font-size:14px;color:var(--ink);margin-bottom:4px;">Translating SQL to Cypher & Querying AuraDB...</div>
+        <div style="font-size:12px;color:var(--muted);">Validating graph schema entities, mapping properties & executing parameterized Cypher</div>
+      </div>
+    `;
+    return;
+  }
+
+  const res = sqlBuilderState.executionResult;
+  if (!res) {
+    container.innerHTML = `
+      <div class="live-exec-panel" style="text-align:center;padding:36px 20px;">
+        <div style="font-size:28px;margin-bottom:8px;">⚡</div>
+        <div style="font-weight:700;font-size:14px;color:var(--ink);margin-bottom:6px;">Ready to Execute on Neo4j AuraDB</div>
+        <p style="color:var(--muted);font-size:12px;max-width:520px;margin:0 auto 16px;">
+          Translates your ANSI SQL query into parameterized Cypher graph syntax and queries live AuraDB cloud instances in real time.
+        </p>
+        <button type="button" class="btn primary" onclick="executeLiveSqlQuery()">
+          ▶ Execute Query on AuraDB
+        </button>
+      </div>
+    `;
+    return;
+  }
+
+  container.innerHTML = `
+    <div class="live-exec-panel">
+      <div class="live-exec-header">
+        <div style="display:flex;align-items:center;gap:8px;">
+          <h4 style="margin:0;font:700 14px var(--font-head);color:var(--ink);">Neo4j AuraDB Query Execution</h4>
+          <span class="metric-pill ${res.status === 'SUCCESS' ? 'success' : 'warn'}">
+            ${res.status === 'SUCCESS' ? '● 200 OK' : '● ' + (res.status || 'ERROR')}
+          </span>
+        </div>
+        <div class="live-metrics-group">
+          ${res.durationMs !== undefined ? `<span class="metric-pill info">⚡ ${res.durationMs} ms</span>` : ''}
+          ${res.rowCount !== undefined ? `<span class="metric-pill info">📊 ${res.rowCount} row${res.rowCount === 1 ? '' : 's'}</span>` : ''}
+          <span class="metric-pill success">🔒 PII Masked</span>
+          <button type="button" class="btn btn-sm" onclick="executeLiveSqlQuery()">↺ Re-run</button>
+        </div>
+      </div>
+
+      ${res.error ? `
+        <div style="background:#fef2f2;border:1px solid #fecaca;color:#991b1b;padding:12px 14px;border-radius:6px;font-size:12px;margin-bottom:14px;">
+          <div style="font-weight:700;margin-bottom:4px;">Query Execution Error:</div>
+          <div>${escapeHtml(res.error)}</div>
+          <div style="margin-top:10px;">
+            <button type="button" class="btn btn-sm" onclick="executeLiveSqlQuery()">↺ Retry Query</button>
+          </div>
+        </div>
+      ` : ''}
+
+      ${res.cypher ? `
+        <div style="margin-bottom:14px;">
+          <div style="font-size:11px;font-weight:700;color:var(--ink-secondary);margin-bottom:4px;text-transform:uppercase;letter-spacing:0.5px;">Translated Parameterized Cypher:</div>
+          <pre class="cypher-display-box"><span class="cy-kw">// Translated Cypher executed against Neo4j AuraDB:</span>\n${escapeHtml(res.cypher)}\n\n<span class="cy-kw">// Parameter Map:</span>\n${escapeHtml(JSON.stringify(res.parameters || {}, null, 2))}</pre>
+        </div>
+      ` : ''}
+
+      ${res.rows && res.rows.length > 0 ? `
+        <div class="live-table-wrapper">
+          <table class="live-data-table">
+            <thead>
+              <tr>
+                ${(res.columns || Object.keys(res.rows[0] || {})).map(col => `<th>${escapeHtml(col)}</th>`).join('')}
+              </tr>
+            </thead>
+            <tbody>
+              ${res.rows.map(row => `
+                <tr>
+                  ${(res.columns || Object.keys(row)).map(col => {
+                    const val = row[col];
+                    const displayVal = val === null || val === undefined ? '<span style="color:var(--muted)">NULL</span>' : escapeHtml(String(val));
+                    const isMono = typeof val === 'number' || (typeof val === 'string' && /^(CR|B0|C0|S0|T0|V0)/.test(val));
+                    return `<td class="${isMono ? 'mono-val' : ''}">${displayVal}</td>`;
+                  }).join('')}
+                </tr>
+              `).join('')}
+            </tbody>
+          </table>
+        </div>
+      ` : (res.status === 'SUCCESS' ? `
+        <div class="live-empty-table">
+          Query executed successfully in ${res.durationMs}ms — 0 records matched this criteria in Neo4j AuraDB.
+        </div>
+      ` : '')}
+    </div>
+  `;
+}
+
+async function executeLiveSqlQuery() {
+  const sql = generateSqlString(sqlBuilderState);
+  sqlBuilderState.isExecuting = true;
+  sqlBuilderState.executionResult = null;
+  renderExecutionPanel();
+
+  try {
+    const res = await api('/api/sql/execute', {
+      method: 'POST',
+      body: { sql }
+    });
+    sqlBuilderState.executionResult = res;
+  } catch (err) {
+    sqlBuilderState.executionResult = {
+      status: 'ERROR',
+      error: err.message || 'SQL execution failed against Neo4j AuraDB',
+      cypher: '',
+      parameters: {},
+      rowCount: 0,
+      durationMs: 0,
+      columns: [],
+      rows: []
+    };
+  } finally {
+    sqlBuilderState.isExecuting = false;
+    renderExecutionPanel();
+  }
+}
+
 async function renderSqlBuilder() {
   const curTable = SQL_SCHEMA[sqlBuilderState.table] || SQL_SCHEMA.parcels;
   const currentSql = generateSqlString(sqlBuilderState);
   const highlighted = highlightSqlSyntax(currentSql);
   
   return `
-    ${pageHead('SQL Query Builder', 'Interactive SQL generator for logistics relational schema with live syntax preview, presets, and relational algebra.')}
+    ${pageHead('SQL Query Builder', 'Interactive SQL generator for logistics schema with live syntax preview, presets, relational algebra, and live Neo4j AuraDB execution.')}
     
     <div class="db-tool-container">
+      <!-- Mode Toggle Switcher -->
+      <div class="mode-toggle-bar">
+        <div class="mode-toggle-group">
+          <button type="button" class="mode-toggle-btn ${sqlBuilderState.mode === 'educational' ? 'active' : ''}" onclick="setSqlBuilderMode('educational')">
+            <span>📘</span> Educational SQL Mode
+          </button>
+          <button type="button" class="mode-toggle-btn ${sqlBuilderState.mode === 'live' ? 'active' : ''}" onclick="setSqlBuilderMode('live')">
+            <span>⚡</span> Live Neo4j Query Mode
+          </button>
+        </div>
+        <div class="mode-desc-pill">
+          ${sqlBuilderState.mode === 'educational'
+            ? '<span>Relational DBMS preview & algebra translation</span>'
+            : '<span style="color:#059669;font-weight:600;">Translates ANSI SQL to Parameterized Cypher on AuraDB</span>'}
+        </div>
+      </div>
+
       <div class="disclaimer-badge">
-        <span>⚠️</span>
+        <span>${sqlBuilderState.mode === 'educational' ? '📘' : '⚡'}</span>
         <div>
-          <b>Educational Relational Preview Mode:</b>
-          This interactive builder demonstrates relational DBMS constructs (Tables, Projection, Selection, Joins, Grouping). The live SwiftShip cloud application persists data in Neo4j AuraDB graph database.
+          ${sqlBuilderState.mode === 'educational'
+            ? '<b>Educational Relational Preview Mode:</b> This interactive builder demonstrates relational DBMS constructs (Tables, Projection, Selection, Joins, Grouping). The live SwiftShip cloud application persists data in Neo4j AuraDB graph database.'
+            : '<b>Live Neo4j Query Mode:</b> Validates read-only ANSI SQL against the SwiftShip logistics schema, translates it into parameterized Cypher, and executes directly against live Neo4j AuraDB with PII masking and duration metrics.'}
         </div>
       </div>
       
@@ -2402,9 +2597,12 @@ async function renderSqlBuilder() {
             <div class="chip-selector" id="columnChips">
               ${curTable.columns.map(c => {
                 const colKey = `${curTable.alias}.${c.name}`;
-                const isSelected = sqlBuilderState.columns.some(sc => sc.startsWith(colKey) || sc === colKey);
+                const isSelected = sqlBuilderState.columns.some(sc => {
+                  const raw = sc.trim().split(/\s+AS\s+/i)[0].trim();
+                  return raw === colKey || sc === colKey;
+                });
                 return `
-                  <div class="chip-item ${isSelected ? 'selected' : ''}" onclick="toggleBuilderColumn('${colKey}')">
+                  <div class="chip-item ${isSelected ? 'selected' : ''}" data-col="${colKey}" onclick="toggleBuilderColumn('${colKey}')">
                     ${c.name} <small style="opacity:0.7">${c.type}</small>
                   </div>
                 `;
@@ -2506,6 +2704,11 @@ async function renderSqlBuilder() {
                 <span>📄</span> Formatted ANSI SQL Statement
               </span>
               <div class="code-actions">
+                ${sqlBuilderState.mode === 'live' ? `
+                  <button type="button" class="code-btn success" onclick="executeLiveSqlQuery()">
+                    ▶ Run on AuraDB
+                  </button>
+                ` : ''}
                 <button type="button" class="code-btn" id="btnCopySql" onclick="copySqlStatement()">
                   Copy SQL
                 </button>
@@ -2524,30 +2727,36 @@ async function renderSqlBuilder() {
           </div>
         </div>
       </div>
+
+      <!-- Live Execution Panel (Shown in Live Neo4j Query Mode) -->
+      ${sqlBuilderState.mode === 'live' ? `
+        <div id="liveExecContainer"></div>
+      ` : ''}
     </div>
   `;
 }
 
 function initSqlBuilderEvents() {
-  // Event listeners are bound via inline callbacks
+  if (sqlBuilderState.mode === 'live') {
+    renderExecutionPanel();
+  }
 }
 
 function applySqlPreset(idx) {
   const p = SQL_PRESETS[idx];
   if (!p) return;
-  sqlBuilderState = {
-    activePresetIndex: idx,
-    table: p.table,
-    columns: [...p.columns],
-    joins: JSON.parse(JSON.stringify(p.joins)),
-    wheres: JSON.parse(JSON.stringify(p.wheres)),
-    groupBy: [...p.groupBy],
-    having: p.having,
-    orderBy: p.orderBy,
-    orderDir: p.orderDir,
-    limit: p.limit,
-    relAlgebra: p.relAlgebra
-  };
+  sqlBuilderState.activePresetIndex = idx;
+  sqlBuilderState.table = p.table;
+  sqlBuilderState.columns = [...p.columns];
+  sqlBuilderState.joins = JSON.parse(JSON.stringify(p.joins));
+  sqlBuilderState.wheres = JSON.parse(JSON.stringify(p.wheres));
+  sqlBuilderState.groupBy = [...p.groupBy];
+  sqlBuilderState.having = p.having;
+  sqlBuilderState.orderBy = p.orderBy;
+  sqlBuilderState.orderDir = p.orderDir;
+  sqlBuilderState.limit = p.limit;
+  sqlBuilderState.relAlgebra = p.relAlgebra;
+  sqlBuilderState.executionResult = null;
   go('sqlbuilder');
   toast(`Loaded Preset: ${p.title}`);
 }
@@ -2561,32 +2770,8 @@ function onBuilderTableChange(t) {
   sqlBuilderState.wheres = [];
   sqlBuilderState.orderBy = tMeta ? `${tMeta.alias}.${tMeta.columns[0].name}` : '';
   sqlBuilderState.relAlgebra = `π [ σ ( ${t} ) ]`;
+  sqlBuilderState.executionResult = null;
   go('sqlbuilder');
-}
-
-function toggleBuilderColumn(colKey) {
-  sqlBuilderState.activePresetIndex = null;
-  const idx = sqlBuilderState.columns.indexOf(colKey);
-  if (idx >= 0) {
-    sqlBuilderState.columns.splice(idx, 1);
-  } else {
-    sqlBuilderState.columns.push(colKey);
-  }
-  updateSqlPreview();
-}
-
-function selectAllColumns() {
-  const tMeta = SQL_SCHEMA[sqlBuilderState.table];
-  if (!tMeta) return;
-  sqlBuilderState.activePresetIndex = null;
-  sqlBuilderState.columns = tMeta.columns.map(c => `${tMeta.alias}.${c.name}`);
-  updateSqlPreview();
-}
-
-function clearColumns() {
-  sqlBuilderState.activePresetIndex = null;
-  sqlBuilderState.columns = [];
-  updateSqlPreview();
 }
 
 function addJoinClause() {
@@ -2678,13 +2863,13 @@ function copySqlStatement() {
     }
     toast('SQL statement copied to clipboard');
   }).catch(() => {
-    toast('Unable to access clipboard');
+    toast('Unable to copy SQL statement');
   });
 }
 
 function downloadSqlFile() {
   const sql = generateSqlString(sqlBuilderState);
-  const blob = new Blob([sql], { type: 'text/sql;charset=utf-8;' });
+  const blob = new Blob([sql], { type: 'text/plain;charset=utf-8' });
   const url = URL.createObjectURL(blob);
   const a = document.createElement('a');
   a.href = url;
@@ -2693,7 +2878,7 @@ function downloadSqlFile() {
   a.click();
   document.body.removeChild(a);
   URL.revokeObjectURL(url);
-  toast('Downloaded .sql file');
+  toast('Downloaded query as .sql file');
 }
 
 // ==============================================================================
@@ -2744,6 +2929,11 @@ END trg_parcel_status_audit;
 [DBMS_OUTPUT] Old Status: IN_TRANSIT -> New Status: OUT_FOR_DELIVERY
 [DBMS_OUTPUT] Recorded audit row sys_guid()='A98F712E-5D3B-4921' by user 'SWIFTSHIP_ADMIN'
 [DBMS_OUTPUT] 1 row updated in table PARCELS.`
+    },
+    graphParadigm: {
+      title: 'Cypher Graph Equivalent: Audit Node Chains & Event Hooks',
+      concept: 'Atomic Graph Audit History vs. Row Triggers',
+      desc: 'In Neo4j AuraDB, row triggers are superseded by graph event chains: when a Parcel updates status, the serverless handler creates a (:TrackingEvent) node connected via [:HAS_TRACKING_EVENT] in an atomic ACID transaction, preserving full event provenance.'
     }
   },
   {
@@ -2782,6 +2972,11 @@ END trg_validate_parcel_pricing;
 [DBMS_OUTPUT] Weight validated: 12.50 kg (Within bounds 0 < W <= 500)
 [DBMS_OUTPUT] Floor rate adjustment: Base rate 30.00 < 40.00 -> Adjusted :NEW.base_rate to 40.00
 [DBMS_OUTPUT] 1 row inserted.`
+    },
+    graphParadigm: {
+      title: 'Cypher Graph Equivalent: Schema Constraints & Service Middleware',
+      concept: 'Graph Schema Constraints vs. BEFORE INSERT Triggers',
+      desc: 'In Neo4j AuraDB, field sanity limits and minimum rates are validated declaratively at the application service tier before Cypher MERGE/CREATE, and enforced via property existence constraints and transaction boundaries.'
     }
   },
   {
@@ -2809,6 +3004,11 @@ END trg_prevent_unassigned_dispatch;
 ORA-06512: at "SWIFTSHIP.TRG_PREVENT_UNASSIGNED_DISPATCH", line 4
 ORA-04088: error during execution of trigger 'SWIFTSHIP.TRG_PREVENT_UNASSIGNED_DISPATCH'
 [DBMS_OUTPUT] Transaction rolled back safely.`
+    },
+    graphParadigm: {
+      title: 'Cypher Graph Equivalent: Relationship Pattern Integrity',
+      concept: 'Graph Relationship Verification vs. Column FK Checks',
+      desc: 'Instead of verifying a foreign key column delivery_agent_id IS NOT NULL, Cypher queries require matching an actual active relationship: MATCH (da:DeliveryAgent)-[:ASSIGNED_TO]->(p:Parcel) WHERE p.status = "OUT_FOR_DELIVERY", enforcing topological graph consistency.'
     }
   },
   {
@@ -2857,6 +3057,11 @@ END;
 [3] Waybill: CR101005 | Destination: Bengaluru Tech Hub | Status: IN_TRANSIT
 Cursor scan concluded. Flagged consignments: 3
 PL/SQL procedure successfully completed.`
+    },
+    graphParadigm: {
+      title: 'Cypher Graph Equivalent: Declarative Path Traversal',
+      concept: 'Graph Traversals vs. Procedural Explicit Cursors',
+      desc: 'Instead of procedural OPEN, FETCH loops, and CLOSE management, Cypher declaratively traverses (:Parcel)-[:DESTINED_FOR]->(:Branch) where p.status IN ["PENDING", "IN_TRANSIT"] with zero cursor state or loop overhead.'
     }
   },
   {
@@ -2898,6 +3103,11 @@ Originating Hub: BR-DEL-01
   -> Waybill: CR200122 (14.80 kg)
 Manifest aggregate freight mass: 19.45 kg
 PL/SQL procedure successfully completed.`
+    },
+    graphParadigm: {
+      title: 'Cypher Graph Equivalent: Declarative Aggregation & Collect',
+      concept: 'Graph Aggregations vs. Cursor FOR Loops',
+      desc: 'Cypher aggregates dispatch manifests in a single pass using MATCH (b:Branch {branchId: $id})<-[:ORIGINATED_AT]-(p:Parcel) RETURN collect(p.trackingNumber) AS waybills, sum(p.weight) AS totalMass.'
     }
   },
   {
@@ -2940,6 +3150,11 @@ SQL%FOUND: TRUE
 SQL%ROWCOUNT: 42 rows transitioned to ARCHIVED.
 SQL%ISOPEN: FALSE (Implicit cursor automatically closed by engine).
 PL/SQL procedure successfully completed.`
+    },
+    graphParadigm: {
+      title: 'Cypher Graph Equivalent: Execution Result Summary Counters',
+      concept: 'Transaction Counters vs. SQL%ROWCOUNT / %FOUND',
+      desc: 'In Neo4j, cursor state is returned in the Cypher query result summary: summary.counters.updates().propertiesSet and result.records.length report exact modified graph nodes and edges.'
     }
   },
   {
@@ -3001,6 +3216,11 @@ END pkg_courier_operations;
 [DBMS_OUTPUT] Assigned Waybill: CR202610254921
 [DBMS_OUTPUT] Committed parcel record in table PARCELS.
 [DBMS_OUTPUT] Autonomous transaction audit verified.`
+    },
+    graphParadigm: {
+      title: 'Cypher Graph Equivalent: Domain Service Modules & Atomic Subqueries',
+      concept: 'Modular Cypher Subqueries vs. PL/SQL Packages',
+      desc: 'Package encapsulation maps in our cloud architecture to modular JavaScript ES modules (parcels.mjs, tracking.mjs) and Cypher CALL { ... } subqueries executing against Neo4j AuraDB in atomic transactions.'
     }
   }
 ];
@@ -3016,10 +3236,10 @@ async function renderPlsqlLab() {
     
     <div class="db-tool-container">
       <div class="disclaimer-badge">
-        <span>⚠️</span>
+        <span>📘</span>
         <div>
-          <b>Educational Reference Schema:</b>
-          This PL/SQL lab demonstrates Oracle PL/SQL procedural database programming tailored to courier logistics requirements. The live SwiftShip cloud application uses Neo4j AuraDB graph database.
+          <b>Educational Oracle PL/SQL Reference:</b>
+          This laboratory provides relational PL/SQL programs (Triggers, Cursors, Packages) for academic and comparison reference. This procedural code does <b>NOT</b> execute on Neo4j AuraDB. The live SwiftShip cloud application persists all operational data in Neo4j AuraDB using declarative Cypher graph queries.
         </div>
       </div>
       
@@ -3046,7 +3266,7 @@ async function renderPlsqlLab() {
               </span>
               <div class="code-actions">
                 <button type="button" class="code-btn" onclick="executePlsqlSimulation('${currentProg.id}')">
-                  ▶ Run DBMS Simulation
+                  ▶ Run Virtual Simulation
                 </button>
                 <button type="button" class="code-btn" id="btnCopyPlsql" onclick="copyPlsqlCode()">
                   Copy PL/SQL
@@ -3058,15 +3278,29 @@ async function renderPlsqlLab() {
             </div>
             
             <pre class="code-block" id="plsqlCodeBlock">${escapeHtml(currentProg.code)}</pre>
+
+            <!-- Accompanying Graph/Cypher Paradigm Card -->
+            <div class="graph-paradigm-card">
+              <div class="graph-paradigm-header">
+                <span>🌐</span>
+                <span>${currentProg.graphParadigm ? escapeHtml(currentProg.graphParadigm.title) : 'Neo4j Graph & Cypher Equivalent Paradigm'}</span>
+              </div>
+              <div style="font-weight:700;font-size:11.5px;color:#166534;margin-bottom:4px;">
+                ${currentProg.graphParadigm ? escapeHtml(currentProg.graphParadigm.concept) : 'Declarative Graph Traversal vs Procedural Relational Loops'}
+              </div>
+              <p class="graph-paradigm-desc">
+                ${currentProg.graphParadigm ? escapeHtml(currentProg.graphParadigm.desc) : 'In Neo4j AuraDB, this logic is modeled through declarative Cypher graph traversals and Netlify Functions logistics services, eliminating row-by-row procedural state.'}
+              </p>
+            </div>
           </div>
           
           <div class="sim-output-box" id="plsqlSimBox">
             <div class="sim-header">
-              <span>Oracle DBMS_OUTPUT.PUT_LINE Console Stream</span>
+              <span>Oracle Virtual Session DBMS_OUTPUT Console Stream</span>
               <span>Buffer: Active</span>
             </div>
             <div id="plsqlSimContent">
-              ${plsqlSimulationOutput || `[DBMS_OUTPUT] Simulation ready. Click "▶ Run DBMS Simulation" to execute anonymous block and inspect buffer output.`}
+              ${plsqlSimulationOutput || `[DBMS_OUTPUT] Simulation ready. Click "▶ Run Virtual Simulation" to inspect academic buffer output.`}
             </div>
           </div>
         </div>
@@ -3471,9 +3705,13 @@ function runGraphLoop() {
   
   // Draw Edges
   for (const e of graphEngine.edges) {
-    const isHighlighted = graphEngine.hoveredNode && (e.source === graphEngine.hoveredNode || e.target === graphEngine.hoveredNode);
+    const isNodeHighlighted = graphEngine.hoveredNode && (e.source === graphEngine.hoveredNode || e.target === graphEngine.hoveredNode);
+    const isEdgeSelected = graphEngine.selectedEdge === e;
+    const isEdgeHovered = graphEngine.hoveredEdge === e;
+    const isHighlighted = isNodeHighlighted || isEdgeSelected || isEdgeHovered;
+
     ctx.strokeStyle = isHighlighted ? '#10b981' : '#cbd5e1';
-    ctx.lineWidth = isHighlighted ? 2.5 : 1.2;
+    ctx.lineWidth = isEdgeSelected ? 3.0 : (isHighlighted ? 2.2 : 1.2);
     
     ctx.beginPath();
     ctx.moveTo(e.source.x, e.source.y);
@@ -3493,14 +3731,35 @@ function runGraphLoop() {
     ctx.closePath();
     ctx.fill();
     
-    // Edge label badge in center
+    // Edge label badge in center with crisp rounded pill background
     const midX = (e.source.x + e.target.x) / 2;
     const midY = (e.source.y + e.target.y) / 2;
-    ctx.font = '9px DM Sans';
-    ctx.fillStyle = '#64748b';
+    ctx.font = 'bold 9px DM Sans, sans-serif';
+    const textWidth = ctx.measureText(e.type).width;
+    const pillW = textWidth + 12;
+    const pillH = 16;
+    
+    ctx.save();
+    ctx.fillStyle = isHighlighted ? '#ecfdf5' : '#ffffff';
+    ctx.strokeStyle = isHighlighted ? '#10b981' : '#cbd5e1';
+    ctx.lineWidth = 1;
+    
+    const rx = midX - pillW / 2;
+    const ry = midY - pillH / 2;
+    ctx.beginPath();
+    if (ctx.roundRect) {
+      ctx.roundRect(rx, ry, pillW, pillH, 4);
+    } else {
+      ctx.rect(rx, ry, pillW, pillH);
+    }
+    ctx.fill();
+    ctx.stroke();
+    
+    ctx.fillStyle = isHighlighted ? '#047857' : '#475569';
     ctx.textAlign = 'center';
     ctx.textBaseline = 'middle';
-    ctx.fillText(e.type, midX, midY - 6);
+    ctx.fillText(e.type, midX, midY);
+    ctx.restore();
   }
   
   // Draw Nodes
@@ -3578,19 +3837,40 @@ function findNodeAt(x, y) {
   return null;
 }
 
+function findEdgeAt(x, y) {
+  for (const e of graphEngine.edges) {
+    const midX = (e.source.x + e.target.x) / 2;
+    const midY = (e.source.y + e.target.y) / 2;
+    const dx = midX - x;
+    const dy = midY - y;
+    if (dx * dx + dy * dy <= 16 * 16) {
+      return e;
+    }
+  }
+  return null;
+}
+
 function onGraphMouseDown(e) {
   const { x, y } = screenToGraphCoords(e.clientX, e.clientY);
   const clickedNode = findNodeAt(x, y);
   
   if (clickedNode) {
+    graphEngine.selectedEdge = null;
     graphEngine.isDraggingNode = clickedNode;
     clickedNode.isPinned = true;
     graphEngine.selectedNode = clickedNode;
     openNodeDrawer(clickedNode);
   } else {
-    graphEngine.isPanning = true;
-    graphEngine.startDragX = e.clientX - graphEngine.panX;
-    graphEngine.startDragY = e.clientY - graphEngine.panY;
+    const clickedEdge = findEdgeAt(x, y);
+    if (clickedEdge) {
+      graphEngine.selectedNode = null;
+      graphEngine.selectedEdge = clickedEdge;
+      openEdgeDrawer(clickedEdge);
+    } else {
+      graphEngine.isPanning = true;
+      graphEngine.startDragX = e.clientX - graphEngine.panX;
+      graphEngine.startDragY = e.clientY - graphEngine.panY;
+    }
   }
 }
 
@@ -3605,10 +3885,10 @@ function onGraphMouseMove(e) {
   } else if (graphEngine.canvas) {
     const { x, y } = screenToGraphCoords(e.clientX, e.clientY);
     const node = findNodeAt(x, y);
-    if (node !== graphEngine.hoveredNode) {
-      graphEngine.hoveredNode = node;
-      graphEngine.canvas.style.cursor = node ? 'pointer' : 'grab';
-    }
+    const edge = node ? null : findEdgeAt(x, y);
+    graphEngine.hoveredNode = node;
+    graphEngine.hoveredEdge = edge;
+    graphEngine.canvas.style.cursor = (node || edge) ? 'pointer' : 'grab';
   }
 }
 
@@ -3719,9 +3999,65 @@ function openNodeDrawer(node) {
   drawer.classList.add('open');
 }
 
+function openEdgeDrawer(edge) {
+  const drawer = $('#nodeDrawer');
+  const title = $('#drawerNodeTitle');
+  const body = $('#drawerBody');
+  if (!drawer || !title || !body) return;
+  
+  title.innerHTML = `
+    <span style="font-size:13px;color:var(--muted)">Relationship:</span>
+    <b style="color:#059669;margin-left:6px;">[:${escapeHtml(edge.type)}]</b>
+  `;
+  
+  const srcCaption = edge.source?.caption || edge.source?.id;
+  const tgtCaption = edge.target?.caption || edge.target?.id;
+  const srcLabel = edge.source?.primaryLabel || 'Node';
+  const tgtLabel = edge.target?.primaryLabel || 'Node';
+  
+  let html = `
+    <div style="margin-bottom:14px;background:#f8fafc;padding:12px;border-radius:6px;border:1px solid var(--line);">
+      <div style="font-size:10.5px;color:var(--muted);font-weight:700;letter-spacing:0.5px;margin-bottom:8px;text-transform:uppercase;">Connected Endpoints</div>
+      <div style="font-size:12px;display:flex;align-items:center;gap:6px;margin-bottom:6px;">
+        <span class="legend-dot" style="background:${edge.source.color || '#3b82f6'};width:8px;height:8px;display:inline-block;border-radius:50%;"></span>
+        <span><b>${escapeHtml(srcLabel)}:</b> ${escapeHtml(srcCaption)}</span>
+      </div>
+      <div style="font-size:11px;color:var(--muted);padding-left:14px;margin-bottom:6px;">↓ &nbsp;<b>[:${escapeHtml(edge.type)}]</b></div>
+      <div style="font-size:12px;display:flex;align-items:center;gap:6px;">
+        <span class="legend-dot" style="background:${edge.target.color || '#3b82f6'};width:8px;height:8px;display:inline-block;border-radius:50%;"></span>
+        <span><b>${escapeHtml(tgtLabel)}:</b> ${escapeHtml(tgtCaption)}</span>
+      </div>
+    </div>
+    
+    <div style="margin-bottom:8px;font-size:10.5px;font-weight:700;color:var(--muted);text-transform:uppercase;letter-spacing:0.5px;">Relationship Properties</div>
+  `;
+  
+  const propEntries = Object.entries(edge.properties || {});
+  if (propEntries.length === 0) {
+    html += '<p style="color:var(--muted);font-size:12px;font-style:italic;">No relationship properties stored.</p>';
+  } else {
+    html += `
+      <table class="drawer-prop-table">
+        <tbody>
+          ${propEntries.map(([k, v]) => `
+            <tr>
+              <th>${escapeHtml(k)}</th>
+              <td>${escapeHtml(String(v))}</td>
+            </tr>
+          `).join('')}
+        </tbody>
+      </table>
+    `;
+  }
+  
+  body.innerHTML = html;
+  drawer.classList.add('open');
+}
+
 function closeNodeDrawer() {
   $('#nodeDrawer')?.classList.remove('open');
   graphEngine.selectedNode = null;
+  graphEngine.selectedEdge = null;
 }
 
 // ------------------------------------------------------------------------------

@@ -10,7 +10,9 @@ test('sanitizeProperties() removes sensitive keys while preserving logistics att
     authToken: 'eyJhbGciOi...',
     secretKey: 'xyz123',
     weight: 2.5,
-    status: 'IN_TRANSIT'
+    status: 'IN_TRANSIT',
+    email: 'john.smith@gmail.com',
+    phone: '9876543210'
   };
 
   const clean = sanitizeProperties(input);
@@ -21,6 +23,8 @@ test('sanitizeProperties() removes sensitive keys while preserving logistics att
   assert.equal(clean.password, undefined);
   assert.equal(clean.authToken, undefined);
   assert.equal(clean.secretKey, undefined);
+  assert.equal(clean.email, 'j•••h@gmail.com');
+  assert.equal(clean.phone, '9876••••10');
 });
 
 test('getNodeCaption() formats primary logistics identifiers accurately', () => {

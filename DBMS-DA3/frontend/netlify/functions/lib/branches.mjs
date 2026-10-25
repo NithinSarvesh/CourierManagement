@@ -55,7 +55,7 @@ export async function createBranch(data) {
 }
 
 export async function listBranches() {
-  const rows = await runQuery(`
+  let rows = await runQuery(`
     MATCH (b:Branch)
     OPTIONAL MATCH (p1:Parcel)-[:ORIGINATED_AT]->(b)
     OPTIONAL MATCH (p2:Parcel)-[:DESTINED_FOR]->(b)
@@ -64,6 +64,33 @@ export async function listBranches() {
            count(DISTINCT p2) AS destinedParcelsCount
     ORDER BY b.branchId ASC
   `);
+
+  if (rows.length === 0) {
+    const defaultBranches = [
+      { branchId: 'B001', name: 'Delhi Central Hub', city: 'Delhi' },
+      { branchId: 'B002', name: 'Mumbai South Hub', city: 'Mumbai' },
+      { branchId: 'B003', name: 'Bengaluru Tech Hub', city: 'Bengaluru' },
+      { branchId: 'B004', name: 'Chennai Port Hub', city: 'Chennai' },
+      { branchId: 'B005', name: 'Kolkata East Hub', city: 'Kolkata' }
+    ];
+    for (const b of defaultBranches) {
+      await runQuery(
+        `MERGE (b:Branch {branchId: $branchId})
+         ON CREATE SET b.name = $name, b.city = $city`,
+        b,
+        { write: true }
+      );
+    }
+    rows = await runQuery(`
+      MATCH (b:Branch)
+      OPTIONAL MATCH (p1:Parcel)-[:ORIGINATED_AT]->(b)
+      OPTIONAL MATCH (p2:Parcel)-[:DESTINED_FOR]->(b)
+      RETURN b.branchId AS branchId, b.name AS name, b.city AS city,
+             count(DISTINCT p1) AS originatingParcelsCount,
+             count(DISTINCT p2) AS destinedParcelsCount
+      ORDER BY b.branchId ASC
+    `);
+  }
 
   return rows.map(r => ({
     branchId: r.branchId,

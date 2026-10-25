@@ -19,6 +19,7 @@ import * as tickets from './lib/support-tickets.mjs';
 import * as services from './lib/services.mjs';
 import * as staff from './lib/staff.mjs';
 import { getGraphOverview } from './lib/graph.mjs';
+import { executeSqlQuery, GRAPH_SCHEMA } from './lib/sql-translator.mjs';
 
 /**
  * Main HTTP router function
@@ -57,6 +58,22 @@ export async function router(method, path, query, body) {
   if ((path === '/api/graph/overview' || path === '/api/graph') && method === 'GET') {
     const graphData = await getGraphOverview(query);
     return json(graphData);
+  }
+
+  // 2c. SQL-to-Cypher Translator & Live Execution
+  if ((path === '/api/sql/execute' || path === '/api/sql') && method === 'POST') {
+    if (!body || !body.sql) {
+      return error('Missing required property "sql" in request body', 400);
+    }
+    const result = await executeSqlQuery(body.sql, { dryRun: Boolean(body.dryRun) });
+    return json(result);
+  }
+  if (path === '/api/sql/schema' && method === 'GET') {
+    return json({
+      status: 'SUCCESS',
+      schema: GRAPH_SCHEMA,
+      tables: Object.keys(GRAPH_SCHEMA)
+    });
   }
 
   // 3. Customers
