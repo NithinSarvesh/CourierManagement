@@ -1,25 +1,28 @@
-# SwiftShip Courier Management — Frontend
+# SwiftShip Courier Management Frontend
 
-A standalone, responsive frontend prototype built against the modules and REST resources present in the supplied Spring Boot backend.
+## What changed for the project presentation
+- Removed the invented personal greeting and replaced it with a neutral Courier Operations Overview.
+- Replaced the Alex Smith profile with SwiftShip Admin.
+- Added **Graph Explorer** to visualize branch, parcel and customer API records as nodes and relationship lines.
+- Added **Query Builder** with guided node labels, properties, conditions, result limits, and a Cypher preview/copy action.
+- Kept the existing REST API client and Netlify Functions architecture.
 
-## Run
-Open `index.html` in a modern browser. No Node/npm/build step is required.
+## Important graph/query note
+The graph screen visualizes data returned by the current REST endpoints. Where the API does not expose actual relationship objects, the view uses inferred illustrative connections and labels this in the UI. It is not a direct Neo4j Browser visualization.
 
-## Important
-This delivery is **frontend only**. It does not make API calls, persist submitted records, or connect to a database. Screens use representative preview data and form submissions show a preview-only toast. Your teammate can wire the UI to the backend.
+The query builder generates a read-only Cypher preview. It intentionally does **not** execute arbitrary Cypher because the current frontend API does not expose a general-purpose query endpoint. To execute queries, implement a secured backend endpoint that allowlists labels/properties and permits read-only queries only.
 
-## Backend resources identified
-- `/api/dashboard` and `/api/dashboard/summary`
-- `/api/parcels` (booking, list/search, detail, update, cancel)
-- `/api/tracking` (events, history, current status)
-- `/api/customers`
-- `/api/agents`
-- `/api/vehicles`
-- `/api/branches`
-- `/api/routes`
-- `/api/payments`
-- `/api/support-tickets`
-- `/api/services`
-- `/api/staff`
+## Run locally
+This repository uses Netlify Functions and the Neo4j driver. Use the project's configured environment and Netlify CLI for the full stack. Opening `index.html` directly may display the UI, but API calls require a running backend or deployed Netlify Functions.
 
-The UI includes dashboard, parcel management, tracking, customer directory, agents, fleet, branches, route explorer, payments, support, services and staff/access pages.
+## Update your GitHub repository
+From a terminal opened in the repository folder:
+
+```bash
+git status
+git add DBMS-DA3/frontend
+git commit -m "feat(frontend): add graph explorer and guided query builder"
+git push origin main
+```
+
+If you extracted only the `frontend` folder rather than the full repository, open the actual repository clone before running those Git commands. A ZIP download is not itself a Git repository and cannot push commits until placed in a clone.

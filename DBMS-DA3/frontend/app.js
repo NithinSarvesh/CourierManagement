@@ -240,6 +240,8 @@ const pageMeta = {
   vehicles: { title: 'Fleet', desc: 'Manage vehicle inventory, capacities, and driver assignments.' },
   branches: { title: 'Branches', desc: 'Explore hubs, connectivity network, and branch operations.' },
   routes: { title: 'Routes', desc: 'Explore transportation lanes and calculated route distances.' },
+  graph: { title: 'Graph explorer', desc: 'Explore the courier network as nodes and relationships.' },
+  query: { title: 'Query builder', desc: 'Build read-only graph queries using guided filters.' },
   payments: { title: 'Payments', desc: 'Financial transactions, revenue summaries, and payment methods.' },
   support: { title: 'Support tickets', desc: 'Customer support tickets, inquiry tracking, and resolution.' },
   services: { title: 'Services', desc: 'Shipping products, base pricing, and delivery commitments.' },
@@ -320,6 +322,12 @@ async function go(p) {
       case 'routes':
         container.innerHTML = await renderRoutes();
         break;
+      case 'graph':
+        container.innerHTML = await renderGraphExplorer();
+        break;
+      case 'query':
+        container.innerHTML = renderQueryBuilder();
+        break;
       case 'payments':
         container.innerHTML = await renderPayments();
         break;
@@ -347,6 +355,118 @@ function refreshCurrentPage() {
   go(active);
 }
 
+
+// ------------------------------------------------------------------------------
+// Graph explorer and guided read-only query builder
+// ------------------------------------------------------------------------------
+
+async function renderGraphExplorer() {
+  const [branches, routes, parcels, customers] = await Promise.all([
+    api('/api/branches').catch(() => []),
+    api('/api/routes').catch(() => []),
+    api('/api/parcels?size=100').catch(() => ({ content: [] })),
+    api('/api/customers?size=100').catch(() => ({ content: [] }))
+  ]);
+  const branchList = Array.isArray(branches) ? branches : [];
+  const routeList = Array.isArray(routes) ? routes : [];
+  const parcelList = Array.isArray(parcels) ? parcels : (parcels.content || parcels.items || []);
+  const customerList = Array.isArray(customers) ? customers : (customers.content || customers.items || []);
+  const nodes = [];
+  branchList.slice(0, 8).forEach((b,i) => nodes.push({id:b.branchId || b.id || `BR-${i+1}`, label:b.branchName || b.name || `Branch ${i+1}`, type:'Branch'}));
+  parcelList.slice(0, 8).forEach((p,i) => nodes.push({id:p.trackingNumber || p.parcelId || `P-${i+1}`, label:p.trackingNumber || `Parcel ${i+1}`, type:'Parcel'}));
+  customerList.slice(0, 5).forEach((c,i) => nodes.push({id:c.customerId || c.id || `C-${i+1}`, label:c.name || c.customerName || `Customer ${i+1}`, type:'Customer'}));
+  const fallback = nodes.length === 0;
+  const displayNodes = fallback ? [
+    {id:'BR-01',label:'Origin branch',type:'Branch'},{id:'P-2041',label:'Parcel node',type:'Parcel'},
+    {id:'C-1001',label:'Customer node',type:'Customer'},{id:'BR-02',label:'Destination branch',type:'Branch'}
+  ] : nodes;
+  const coords = displayNodes.map((n,i) => {
+    const angle = (Math.PI*2*i/displayNodes.length)-Math.PI/2;
+    return {...n,x:400+270*Math.cos(angle),y:220+155*Math.sin(angle)};
+  });
+  const edges = [];
+  // Draw branch connectivity from route records, then link parcels/customers to the nearest hub as a visual guide.
+  routeList.slice(0, 10).forEach(r => {
+    const from = String(r.fromBranchId || r.from || r.originBranch || '');
+    const to = String(r.toBranchId || r.to || r.destinationBranch || '');
+    const a = coords.find(n => n.id===from || n.label.toLowerCase().includes(from.toLowerCase()));
+    const b = coords.find(n => n.id===to || n.label.toLowerCase().includes(to.toLowerCase()));
+    if (a && b && a!==b) edges.push([a,b,'CONNECTED_TO']);
+  });
+  if (!edges.length && coords.length > 1) {
+    for(let i=0;i<coords.length-1;i++) edges.push([coords[i],coords[i+1], coords[i].type==='Parcel'?'BOOKED_BY':'CONNECTED_TO']);
+  }
+  const edgeSvg = edges.map(([a,b,label]) => `<g><line x1="${a.x}" y1="${a.y}" x2="${b.x}" y2="${b.y}" stroke="#9bbca7" stroke-width="2"/><text x="${(a.x+b.x)/2}" y="${(a.y+b.y)/2-7}" fill="#6e8d78" font-size="10" text-anchor="middle">${label}</text></g>`).join('');
+  const nodeSvg = coords.map(n => {
+    const fill = n.type==='Branch'?'#176b4b':n.type==='Parcel'?'#d8eaa5':'#d9e9ff';
+    const text = n.type==='Branch'?'#fff':'#274638';
+    return `<g class="graph-node" tabindex="0" role="button" onclick="selectGraphNode('${String(n.id).replace(/'/g,"")}','${n.type}')" style="cursor:pointer"><circle cx="${n.x}" cy="${n.y}" r="27" fill="${fill}" stroke="#fff" stroke-width="3"/><text x="${n.x}" y="${n.y+4}" fill="${text}" text-anchor="middle" font-size="10" font-weight="700">${n.type==='Branch'?'BR':n.type==='Parcel'?'PKG':'CUS'}</text><text x="${n.x}" y="${n.y+43}" fill="#30483a" text-anchor="middle" font-size="11">${String(n.label).slice(0,22)}</text></g>`;
+  }).join('');
+  window.__graphNodes = coords;
+  return `${pageHead('Courier network graph','Visualize branches, parcels and customers as connected graph entities.')}
+  <div class="stats graph-stats">
+    <div class="stat"><div class="statlabel">Branch nodes <span>⌂</span></div><div class="statvalue">${branchList.length}</div><div class="statfoot">Retrieved from API</div></div>
+    <div class="stat"><div class="statlabel">Parcel nodes <span>▣</span></div><div class="statvalue">${parcelList.length}</div><div class="statfoot">Retrieved from API</div></div>
+    <div class="stat"><div class="statlabel">Customer nodes <span>♙</span></div><div class="statvalue">${customerList.length}</div><div class="statfoot">Retrieved from API</div></div>
+    <div class="stat"><div class="statlabel">Route records <span>⌁</span></div><div class="statvalue">${routeList.length}</div><div class="statfoot">Route API results</div></div>
+  </div>
+  <div class="panel graph-panel"><div class="panelhead"><div><h3>Network visualization</h3><small>Click a node to inspect its label and type</small></div><div class="graph-legend"><span><i class="branch-dot"></i>Branch</span><span><i class="parcel-dot"></i>Parcel</span><span><i class="customer-dot"></i>Customer</span></div></div>
+  ${fallback?'<div class="notice">Backend data could not be loaded. Showing a clearly labelled illustrative graph so the page layout can still be demonstrated.</div>':''}
+  <div class="graph-canvas"><svg viewBox="0 0 800 440" role="img" aria-label="Courier network node relationship graph">${edgeSvg}${nodeSvg}</svg></div>
+  <div id="graphNodeInfo" class="graph-node-info">Select a node in the graph to inspect it.</div>
+  <div class="graph-note">This is a frontend visualization of API records, not a direct Neo4j Browser canvas. Relationship lines are inferred for display when the API does not return relationship objects.</div>
+  </div>`;
+}
+
+function selectGraphNode(id,type) {
+  const box = $('#graphNodeInfo');
+  if (box) box.innerHTML = `<b>${escapeHtml(id)}</b><span class="status active">${escapeHtml(type)}</span><span>Selected graph entity</span>`;
+}
+
+function renderQueryBuilder() {
+  return `${pageHead('Query builder','Build a read-only Cypher query using guided node types and filters.')}
+  <div class="notice query-notice"><b>Read-only safety:</b> this builder previews Cypher and does not run arbitrary database commands. Your current API does not expose a general-purpose Cypher execution endpoint.</div>
+  <div class="query-layout">
+    <div class="panel"><div class="panelhead"><h3>Build your query</h3><small>Guided mode</small></div>
+      <div class="field"><label>Find entities</label><select id="qbEntity" onchange="updateQueryPreview()"><option value="Branch">Branches</option><option value="Parcel">Parcels</option><option value="Customer">Customers</option><option value="DeliveryAgent">Delivery agents</option><option value="Vehicle">Vehicles</option><option value="Payment">Payments</option></select></div>
+      <div class="field" style="margin-top:14px"><label>Property to filter</label><select id="qbProperty" onchange="updateQueryPreview()"><option value="name">name</option><option value="status">status</option><option value="id">id</option><option value="city">city</option></select></div>
+      <div class="field" style="margin-top:14px"><label>Condition</label><select id="qbOperator" onchange="updateQueryPreview()"><option value="contains">contains</option><option value="equals">equals</option><option value="starts">starts with</option></select></div>
+      <div class="field" style="margin-top:14px"><label>Value</label><input id="qbValue" placeholder="Enter a value (e.g. Chennai)" oninput="updateQueryPreview()"></div>
+      <div class="field" style="margin-top:14px"><label>Maximum results</label><select id="qbLimit" onchange="updateQueryPreview()"><option>10</option><option>25</option><option>50</option><option>100</option></select></div>
+      <button class="btn primary" style="margin-top:18px" onclick="runGuidedQuery()">Preview query result ↗</button>
+    </div>
+    <div class="panel"><div class="panelhead"><h3>Cypher preview</h3><span class="status active">READ ONLY</span></div><pre id="qbCode" class="cypher-code"></pre><div class="graph-note">Cypher is Neo4j's query language. Use this preview to discuss the query with your teacher or run it in Neo4j Browser with the correct database connection.</div><button class="btn" onclick="copyQuery()">Copy Cypher</button></div>
+  </div>
+  <div class="panel" id="qbResult"><div class="panelhead"><h3>Query result area</h3><small>Preview mode</small></div><div class="empty">Build a query and select “Preview query result”. This UI will show the generated query; database execution is intentionally disabled until a safe backend query endpoint is implemented.</div></div>`;
+}
+function updateQueryPreview() {
+  const entity = $('#qbEntity')?.value || 'Branch';
+  const property = $('#qbProperty')?.value || 'name';
+  const operator = $('#qbOperator')?.value || 'contains';
+  const value = ($('#qbValue')?.value || '').replace(/\\/g,'\\\\').replace(/'/g,"\\'");
+  const limit = Math.min(100, Math.max(1, Number($('#qbLimit')?.value || 10)));
+  const predicate = operator==='equals' ? `toLower(n.${property}) = toLower($value)` :
+    operator==='starts' ? `toLower(n.${property}) STARTS WITH toLower($value)` :
+    `toLower(toString(n.${property})) CONTAINS toLower($value)`;
+  const query = `MATCH (n:${entity})\nWHERE ${predicate}\nRETURN n\nLIMIT ${limit}`;
+  const code = $('#qbCode'); if(code) code.textContent = query;
+  window.__currentCypher = query;
+}
+function runGuidedQuery() {
+  updateQueryPreview();
+  const result = $('#qbResult');
+  if(result) result.innerHTML = `<div class="panelhead"><h3>Generated query</h3><span class="status pending">NOT EXECUTED</span></div><pre class="cypher-code">${escapeHtml(window.__currentCypher || '')}</pre><p class="graph-note">No database query was executed. Connect this builder to a backend endpoint that validates allowed labels, properties and read-only Cypher before enabling execution.</p>`;
+  toast('Cypher preview generated. No database query was executed.');
+}
+function copyQuery() {
+  const q = window.__currentCypher || ($('#qbCode')?.textContent || '');
+  if (navigator.clipboard && navigator.clipboard.writeText) navigator.clipboard.writeText(q).then(()=>toast('Cypher copied')).catch(()=>toast('Select and copy the query manually'));
+  else toast('Select and copy the query manually');
+}
+function escapeHtml(value) {
+  return String(value ?? '').replace(/[&<>"']/g, ch => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[ch]));
+}
+
 // ------------------------------------------------------------------------------
 // View: Dashboard
 // ------------------------------------------------------------------------------
@@ -370,7 +490,7 @@ async function renderDashboard() {
   const recentEvents = data.recentTrackingEvents || [];
 
   return `
-    ${pageHead('Good afternoon, Alex', 'Here is what is happening across your courier network today.', 'Book parcel', 'openBookParcelModal()')}
+    ${pageHead('Courier operations overview', 'Live shipment, delivery, customer and revenue metrics from your courier graph.', 'Book parcel', 'openBookParcelModal()')}
     
     <div class="stats">
       <div class="stat">

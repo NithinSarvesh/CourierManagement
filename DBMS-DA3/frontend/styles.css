@@ -22,3 +22,21 @@
 .btn-warn:hover{background:#ec971f}
 .modal-actions{display:flex;gap:8px;margin-top:14px;padding-top:14px;border-top:1px solid #eef2ee;flex-wrap:wrap}
 
+
+
+/* Presentation-focused graph and query builder views */
+.graph-panel{overflow:hidden}
+.graph-canvas{width:100%;overflow:auto;background-color:#fbfdfb;background-image:radial-gradient(#dfe9e1 1px,transparent 1px);background-size:18px 18px;border:1px solid #edf2ed;border-radius:10px}
+.graph-canvas svg{display:block;width:100%;min-width:650px;height:auto;max-height:540px}
+.graph-node:focus circle{stroke:#f2b35d;stroke-width:5}
+.graph-legend{display:flex;gap:12px;align-items:center;font-size:10px;color:#819087}
+.graph-legend i{display:inline-block;width:8px;height:8px;border-radius:50%;margin-right:4px}
+.branch-dot{background:#176b4b}.parcel-dot{background:#d8eaa5}.customer-dot{background:#d9e9ff}
+.graph-node-info{display:flex;align-items:center;gap:12px;flex-wrap:wrap;margin-top:14px;padding:12px 14px;background:#f6faf6;border:1px solid #e8f0e8;border-radius:8px;font-size:11px;color:#7d8a81}
+.graph-node-info b{color:#243c2e}.graph-note{font-size:10px;line-height:1.6;color:#8b988f;margin-top:13px}
+.notice{background:#f0f7e9;border:1px solid #dfebd5;color:#526b43;border-radius:9px;padding:12px 14px;font-size:11px;line-height:1.6;margin-bottom:16px}
+.query-layout{display:grid;grid-template-columns:minmax(250px,.8fr) minmax(0,1.2fr);gap:16px}
+.query-layout .field label{margin-bottom:2px}
+.cypher-code{background:#14251c;color:#d9f1df;padding:18px;border-radius:9px;white-space:pre-wrap;overflow:auto;font:12px/1.8 Consolas,Monaco,monospace;min-height:130px}
+.query-notice b{color:#2d5637}
+@media(max-width:760px){.query-layout{grid-template-columns:1fr}.graph-legend{display:none}.graph-stats{grid-template-columns:repeat(2,minmax(0,1fr))!important}.graph-panel{padding:12px}}
